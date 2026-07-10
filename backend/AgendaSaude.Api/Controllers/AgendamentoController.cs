@@ -19,13 +19,31 @@ public class AgendamentoController : ControllerBase
         _agendamentoService = agendamentoService;
     }
 
-    private Guid ConsultorioId => Guid.Parse(User.FindFirstValue("ConsultorioId")!);
-    private Guid UsuarioId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private Guid ConsultorioId
+    {
+        get
+        {
+            var value = User.FindFirstValue("ConsultorioId");
+            return Guid.TryParse(value, out var id) ? id : Guid.Empty;
+        }
+    }
+
+    private Guid UsuarioId
+    {
+        get
+        {
+            var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Guid.TryParse(value, out var id) ? id : Guid.Empty;
+        }
+    }
 
     [HttpGet]
-    public async Task<IActionResult> Listar([FromQuery] DateTime? data, [FromQuery] Guid? profissionalId)
+    public async Task<IActionResult> Listar(
+        [FromQuery] DateTime? data, [FromQuery] Guid? profissionalId,
+        [FromQuery] DateTime? dataInicio, [FromQuery] DateTime? dataFim)
     {
-        var result = await _agendamentoService.ListarAgendamentosAsync(ConsultorioId, data, profissionalId);
+        var result = await _agendamentoService.ListarAgendamentosAsync(
+            ConsultorioId, data, profissionalId, dataInicio, dataFim);
         return Ok(result);
     }
 
@@ -67,6 +85,25 @@ public class AgendamentoController : ControllerBase
         var result = await _agendamentoService.AtualizarStatusAsync(id, ConsultorioId, novoStatus);
         if (!result) return NotFound();
         return NoContent();
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Excluir(Guid id, [FromBody] ExcluirAgendamentoRequest? request = null)
+    {
+        var result = await _agendamentoService.ExcluirAgendamentoAsync(
+            id, ConsultorioId, UsuarioId, request?.Motivo);
+        if (!result) return NotFound();
+        return NoContent();
+    }
+
+    [HttpPatch("{id:guid}/reagendar")]
+    public async Task<IActionResult> Reagendar(Guid id, [FromBody] ReagendarRequest request)
+    {
+        var result = await _agendamentoService.ReagendarAsync(
+            id, ConsultorioId, UsuarioId, request.NovaDataHoraInicio);
+        if (result is null)
+            return BadRequest(new { erro = "Agendamento não encontrado ou conflito de horário" });
+        return Ok(result);
     }
 }
 

@@ -7,7 +7,10 @@ import { ProfissionaisComponent } from './profissionais.component';
 import { ServicosComponent } from './servicos.component';
 import { ConfiguracaoComponent } from './configuracao.component';
 import { HorariosComponent } from './horarios.component';
+import { UsuariosComponent } from './usuarios.component';
+import { PerfilComponent } from './perfil.component';
 import { AuthGuard } from '../guards/auth.guard';
+import { AdminGuard } from '../guards/admin.guard';
 
 const routes: Routes = [
   { path: '', component: LoginComponent },
@@ -20,7 +23,9 @@ const routes: Routes = [
       { path: 'profissionais', component: ProfissionaisComponent },
       { path: 'servicos', component: ServicosComponent },
       { path: 'horarios', component: HorariosComponent },
-      { path: 'configuracao', component: ConfiguracaoComponent },
+      { path: 'configuracao', component: ConfiguracaoComponent, canActivate: [AdminGuard] },
+      { path: 'usuarios', component: UsuariosComponent, canActivate: [AdminGuard] },
+      { path: 'perfil', component: PerfilComponent },
     ],
   },
 ];

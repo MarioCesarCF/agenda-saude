@@ -58,6 +58,16 @@ import { AuthService } from '../services/auth.service';
             <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             Horários
           </a>
+          @if (auth.isAdmin()) {
+          <a routerLink="/admin/dashboard/usuarios" #r6="routerLinkActive" routerLinkActive
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition"
+            [style.color]="r6.isActive ? '#fff' : 'rgba(255,255,255,0.75)'"
+            [style.backgroundColor]="r6.isActive ? 'rgba(255,255,255,0.15)' : 'transparent'"
+            (mouseenter)="!r6.isActive && $any($event.target).style.setProperty('background-color', 'rgba(255,255,255,0.08)')"
+            (mouseleave)="!r6.isActive && $any($event.target).style.setProperty('background-color', 'transparent')">
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Usuários
+          </a>
           <a routerLink="/admin/dashboard/configuracao" #r4="routerLinkActive" routerLinkActive
             class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition"
             [style.color]="r4.isActive ? '#fff' : 'rgba(255,255,255,0.75)'"
@@ -66,6 +76,16 @@ import { AuthService } from '../services/auth.service';
             (mouseleave)="!r4.isActive && $any($event.target).style.setProperty('background-color', 'transparent')">
             <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             Configuração
+          </a>
+          }
+          <a routerLink="/admin/dashboard/perfil" #r7="routerLinkActive" routerLinkActive
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition"
+            [style.color]="r7.isActive ? '#fff' : 'rgba(255,255,255,0.75)'"
+            [style.backgroundColor]="r7.isActive ? 'rgba(255,255,255,0.15)' : 'transparent'"
+            (mouseenter)="!r7.isActive && $any($event.target).style.setProperty('background-color', 'rgba(255,255,255,0.08)')"
+            (mouseleave)="!r7.isActive && $any($event.target).style.setProperty('background-color', 'transparent')">
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            Meu Perfil
           </a>
         </nav>
         <div class="p-4" [style.borderTop]="'1px solid ' + (auth.tema() === 'dark' ? '#334155' : 'rgba(255,255,255,0.15)')">

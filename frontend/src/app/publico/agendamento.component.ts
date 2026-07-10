@@ -188,19 +188,63 @@ import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse }
         [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'">
         <h2 class="font-semibold mb-3" [style.color]="config?.tema === 'dark' ? '#f8fafc' : '#1f2937'">Escolha a Data e Horário</h2>
 
-        <div class="grid grid-cols-7 gap-1 mb-4">
-          @for (dia of diasDisponiveis; track dia) {
-          <button (click)="diaTemHorarios(dia) && selecionarData(dia)"
+        <div class="flex items-center justify-between mb-3">
+          <button (click)="mesAnterior()" [disabled]="!podeVoltarMes"
+            class="px-3 py-1.5 text-sm border rounded-lg transition disabled:opacity-30 disabled:pointer-events-none"
+            [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'"
+            [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+            ‹
+          </button>
+          <span class="font-medium text-sm" [style.color]="config?.tema === 'dark' ? '#f1f5f9' : '#374151'">
+            {{ mesAtual | date:"MMMM 'de' yyyy" }}
+          </span>
+          <button (click)="proximoMes()" [disabled]="!podeAvancarMes"
+            class="px-3 py-1.5 text-sm border rounded-lg transition disabled:opacity-30 disabled:pointer-events-none"
+            [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'"
+            [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+            ›
+          </button>
+        </div>
+
+        <div class="grid grid-cols-7 gap-1 mb-1">
+          @for (d of diasSemanaMes; track d) {
+          <div class="text-center text-[10px] font-medium py-1"
+            [style.color]="config?.tema === 'dark' ? '#64748b' : '#9ca3af'">{{ d }}</div>
+          }
+        </div>
+
+        <div class="relative">
+        @if (carregandoHorarios) {
+        <div class="absolute inset-0 flex items-center justify-center z-10 rounded-lg"
+          [style.background-color]="config?.tema === 'dark' ? 'rgba(30,41,59,0.7)' : 'rgba(255,255,255,0.7)'">
+          <div class="flex items-center gap-2 text-sm"
+            [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Carregando horários...
+          </div>
+        </div>
+        }
+        <div class="grid grid-cols-7 gap-1 mb-4" [class.opacity-40]="carregandoHorarios">
+          @for (dia of calendarioMes; track $index) {
+          <button (click)="diaClicavel(dia) && selecionarData(dia)"
             class="py-2 text-xs rounded-lg border transition text-center"
-            [class.opacity-30]="!diaTemHorarios(dia)"
-            [class.pointer-events-none]="!diaTemHorarios(dia)"
-            [style.borderColor]="dataSelecionada === dia ? (config?.corDestaque ?? '#f59e0b') : (config?.tema === 'dark' ? '#334155' : '#e5e7eb')"
-            [style.backgroundColor]="dataSelecionada === dia ? (config?.corDestaque ?? '#f59e0b') + '18' : (config?.tema === 'dark' ? '#1e293b' : '#fff')"
-            [style.color]="dataSelecionada === dia ? (config?.corDestaque ?? '#f59e0b') : (config?.tema === 'dark' ? '#f1f5f9' : '#111827')">
+            [class.opacity-20]="!ehMesAtual(dia)"
+            [class.opacity-30]="ehMesAtual(dia) && !ehPassado(dia) && !diaTemHorarios(dia)"
+            [class.pointer-events-none]="!diaClicavel(dia) || carregandoHorarios"
+            [style.borderColor]="isMesmoDia(dia, dataSelecionada) ? (config?.corDestaque ?? '#f59e0b') : (config?.tema === 'dark' ? '#334155' : '#e5e7eb')"
+            [style.backgroundColor]="isMesmoDia(dia, dataSelecionada) ? (config?.corDestaque ?? '#f59e0b') + '18' : (config?.tema === 'dark' ? '#1e293b' : '#fff')"
+            [style.color]="isMesmoDia(dia, dataSelecionada) ? (config?.corDestaque ?? '#f59e0b') : (ehMesAtual(dia) && !ehPassado(dia) && diaTemHorarios(dia) ? (config?.tema === 'dark' ? '#f1f5f9' : '#111827') : (config?.tema === 'dark' ? '#475569' : '#d1d5db'))">
             <div class="font-medium">{{ dia.getDate() }}</div>
-            <div class="text-[10px]" [style.color]="config?.tema === 'dark' ? '#64748b' : '#9ca3af'">{{ diasSemana[dia.getDay()] }}</div>
+            @if (ehMesAtual(dia) && !ehPassado(dia) && diaTemHorarios(dia) && !isMesmoDia(dia, dataSelecionada)) {
+            <div class="w-1 h-1 rounded-full mx-auto mt-0.5"
+              [style.background-color]="config?.corPrimaria ?? '#059669'"></div>
+            }
           </button>
           }
+        </div>
         </div>
 
         @if (dataSelecionada) {
@@ -281,14 +325,18 @@ import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse }
         <form (ngSubmit)="confirmar()" class="space-y-3">
           <div>
             <label class="block text-sm font-medium mb-1"
-              [style.color]="config?.tema === 'dark' ? '#e2e8f0' : '#374151'">Nome</label>
+              [style.color]="config?.tema === 'dark' ? '#e2e8f0' : '#374151'">Nome <span class="text-red-500">*</span></label>
             <input [(ngModel)]="pacNome" name="nome" required
               class="w-full px-3 py-2 border rounded-lg text-sm outline-none"
               [class.bg-slate-700]="config?.tema === 'dark'"
-              [class.border-slate-600]="config?.tema === 'dark'"
+              [class.border-slate-600]="config?.tema === 'dark' && !nomeInvalido"
               [class.text-white]="config?.tema === 'dark'"
-              [style.boxShadow]="focusedInput === 'nome' ? '0 0 0 2px ' + (config?.corSecundaria ?? '#10b981') : '0 0 0 1px transparent'"
+              [style.borderColor]="nomeInvalido ? '#ef4444' : (config?.tema === 'dark' ? '#475569' : '#d1d5db')"
+              [style.boxShadow]="nomeInvalido ? '0 0 0 1px #ef4444' : (focusedInput === 'nome' ? '0 0 0 2px ' + (config?.corSecundaria ?? '#10b981') : '0 0 0 1px transparent')"
               (focus)="focusedInput = 'nome'" (blur)="focusedInput = ''">
+            @if (nomeInvalido) {
+            <p class="text-red-500 text-xs mt-1">Nome é obrigatório</p>
+            }
           </div>
           <div>
             <label class="block text-sm font-medium mb-1"
@@ -303,14 +351,18 @@ import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse }
           </div>
           <div>
             <label class="block text-sm font-medium mb-1"
-              [style.color]="config?.tema === 'dark' ? '#e2e8f0' : '#374151'">Celular</label>
+              [style.color]="config?.tema === 'dark' ? '#e2e8f0' : '#374151'">Celular <span class="text-red-500">*</span></label>
             <input type="tel" [(ngModel)]="pacCelular" name="celular" required
               class="w-full px-3 py-2 border rounded-lg text-sm outline-none"
               [class.bg-slate-700]="config?.tema === 'dark'"
-              [class.border-slate-600]="config?.tema === 'dark'"
+              [class.border-slate-600]="config?.tema === 'dark' && !celularInvalido"
               [class.text-white]="config?.tema === 'dark'"
-              [style.boxShadow]="focusedInput === 'celular' ? '0 0 0 2px ' + (config?.corSecundaria ?? '#10b981') : '0 0 0 1px transparent'"
+              [style.borderColor]="celularInvalido ? '#ef4444' : (config?.tema === 'dark' ? '#475569' : '#d1d5db')"
+              [style.boxShadow]="celularInvalido ? '0 0 0 1px #ef4444' : (focusedInput === 'celular' ? '0 0 0 2px ' + (config?.corSecundaria ?? '#10b981') : '0 0 0 1px transparent')"
               (focus)="focusedInput = 'celular'" (blur)="focusedInput = ''">
+            @if (celularInvalido) {
+            <p class="text-red-500 text-xs mt-1">Celular é obrigatório</p>
+            }
           </div>
 
           @if (erro) {
@@ -393,11 +445,13 @@ export class AgendamentoComponent implements OnInit {
   buscaProf = '';
   buscaServ = '';
 
-  diasDisponiveis: Date[] = [];
+  mesAtual = new Date();
+  calendarioMes: Date[] = [];
+  diasSemanaMes = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
   diasComHorarios = new Set<string>();
   dataSelecionada: Date | null = null;
   horariosData: string[] = [];
-  diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  carregandoHorarios = false;
 
   pacNome = '';
   pacEmail = '';
@@ -405,6 +459,15 @@ export class AgendamentoComponent implements OnInit {
   erro = '';
   sucesso = '';
   focusedInput = '';
+  submitted = false;
+
+  get nomeInvalido(): boolean {
+    return this.submitted && !this.pacNome.trim();
+  }
+
+  get celularInvalido(): boolean {
+    return this.submitted && !this.pacCelular.trim();
+  }
 
   ngOnInit() {
     this.consultorioId = this.route.snapshot.params['consultorioId'];
@@ -412,7 +475,6 @@ export class AgendamentoComponent implements OnInit {
     this.api.getConfiguracaoPublica(this.consultorioId).subscribe({
       next: (res) => {
         this.config = res;
-        this.gerarDiasDisponiveis();
         this.cdr.detectChanges();
       },
     });
@@ -420,18 +482,76 @@ export class AgendamentoComponent implements OnInit {
     this.carregarProfissionaisServicos();
   }
 
-  private gerarDiasDisponiveis() {
-    this.diasDisponiveis = [];
-    const hoje = new Date();
-    const dias = this.config?.diasAgenda ?? 2;
-    for (let i = 1; i <= dias; i++) {
-      const d = new Date(hoje);
+  private gerarCalendarioMes() {
+    const ano = this.mesAtual.getFullYear();
+    const mes = this.mesAtual.getMonth();
+    const primeiroDia = new Date(ano, mes, 1);
+    const diaSemanaInicio = (primeiroDia.getDay() + 6) % 7;
+    const inicio = new Date(ano, mes, 1 - diaSemanaInicio);
+    this.calendarioMes = Array.from({ length: 42 }, (_, i) => {
+      const d = new Date(inicio);
       d.setDate(d.getDate() + i);
-      this.diasDisponiveis.push(d);
-    }
+      return d;
+    });
   }
 
-  private carregarProfissionaisServicos() {
+  get podeVoltarMes(): boolean {
+    const agora = new Date();
+    return this.mesAtual.getMonth() !== agora.getMonth() ||
+           this.mesAtual.getFullYear() !== agora.getFullYear();
+  }
+
+  get podeAvancarMes(): boolean {
+    const limite = new Date();
+    limite.setMonth(limite.getMonth() + 3);
+    const proximoMes = new Date(this.mesAtual.getFullYear(), this.mesAtual.getMonth() + 1, 1);
+    return proximoMes <= limite;
+  }
+
+  mesAnterior() {
+    if (!this.podeVoltarMes) return;
+    this.mesAtual = new Date(this.mesAtual.getFullYear(), this.mesAtual.getMonth() - 1, 1);
+    this.gerarCalendarioMes();
+    this.dataSelecionada = null;
+    this.horarioSelecionado = '';
+    this.horariosData = [];
+    this.carregarHorarios();
+  }
+
+  proximoMes() {
+    if (!this.podeAvancarMes) return;
+    this.mesAtual = new Date(this.mesAtual.getFullYear(), this.mesAtual.getMonth() + 1, 1);
+    this.gerarCalendarioMes();
+    this.dataSelecionada = null;
+    this.horarioSelecionado = '';
+    this.horariosData = [];
+    this.carregarHorarios();
+  }
+
+  ehMesAtual(dia: Date): boolean {
+    return dia.getMonth() === this.mesAtual.getMonth() &&
+           dia.getFullYear() === this.mesAtual.getFullYear();
+  }
+
+  ehPassado(dia: Date): boolean {
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    amanha.setHours(0, 0, 0, 0);
+    const d = new Date(dia);
+    d.setHours(0, 0, 0, 0);
+    return d < amanha;
+  }
+
+  isMesmoDia(a: Date, b: Date | null): boolean {
+    if (!b) return false;
+    return a.toDateString() === b.toDateString();
+  }
+
+  diaClicavel(dia: Date): boolean {
+    return this.ehMesAtual(dia) && !this.ehPassado(dia) && this.diaTemHorarios(dia);
+  }
+
+  private carregarProfissionaisServicos(autoSelecionar = false) {
     this.api.getProfissionaisPublico(this.consultorioId, this.servicoId || undefined).subscribe({
       next: (res) => {
         this.profissionais = res;
@@ -439,15 +559,27 @@ export class AgendamentoComponent implements OnInit {
         if (this.profissionalId && !res.find(p => p.id === this.profissionalId)) {
           this.limparSelecaoProfissional();
         }
+        if (autoSelecionar && this.servicoId && !this.profissionalId && res.length === 1) {
+          this.profissionalId = res[0].id;
+          this.profissionalNome = res[0].nome;
+        }
         this.cdr.detectChanges();
       },
     });
     this.api.getServicosPublico(this.consultorioId, this.profissionalId || undefined).subscribe({
       next: (res) => {
-        this.servicos = res;
+        this.servicos = this.profissionalId ? res.filter(s => !s.semProfissional) : res;
         this.filtrarServicos();
-        if (this.servicoId && !res.find(s => s.id === this.servicoId)) {
+        if (this.servicoId && !this.servicos.find(s => s.id === this.servicoId)) {
           this.limparSelecaoServico();
+        }
+        if (autoSelecionar && this.profissionalId && !this.servicoId && this.servicos.length === 1) {
+          const serv = this.servicos[0];
+          this.servicoId = serv.id;
+          this.servicoNome = serv.nome;
+          this.servicoPreco = serv.preco;
+          this.duracaoMin = serv.duracaoMinutos;
+          this.servicoSemProfissional = serv.semProfissional;
         }
         this.cdr.detectChanges();
       },
@@ -466,11 +598,14 @@ export class AgendamentoComponent implements OnInit {
 
   entrarStep2() {
     this.passoAtual = 2;
+    const hoje = new Date();
+    this.mesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    this.gerarCalendarioMes();
     this.carregarHorarios();
   }
 
   diaTemHorarios(dia: Date): boolean {
-    if (this.diasComHorarios.size === 0) return true;
+    if (this.horariosDisponiveis.length === 0) return false;
     const key = dia.toISOString().split('T')[0];
     return this.diasComHorarios.has(key);
   }
@@ -499,7 +634,7 @@ export class AgendamentoComponent implements OnInit {
       this.profissionalId = prof.id;
       this.profissionalNome = prof.nome;
     }
-    this.carregarProfissionaisServicos();
+    this.carregarProfissionaisServicos(true);
     this.limparHorarios();
   }
 
@@ -514,7 +649,7 @@ export class AgendamentoComponent implements OnInit {
       this.duracaoMin = serv.duracaoMinutos;
       this.servicoSemProfissional = serv.semProfissional;
     }
-    this.carregarProfissionaisServicos();
+    this.carregarProfissionaisServicos(true);
     this.limparHorarios();
   }
 
@@ -559,15 +694,12 @@ export class AgendamentoComponent implements OnInit {
   private carregarHorarios() {
     if (!this.profissionalId && !this.servicoSemProfissional) return;
 
-    const hoje = new Date();
-    const dias = this.config?.diasAgenda ?? 2;
-    const inicio = new Date(hoje);
-    inicio.setDate(inicio.getDate() - 1);
-    const fim = new Date(hoje);
-    fim.setDate(fim.getDate() + dias);
+    const inicio = new Date(this.mesAtual.getFullYear(), this.mesAtual.getMonth(), 1);
+    const fim = new Date(this.mesAtual.getFullYear(), this.mesAtual.getMonth() + 1, 0);
     const inicioStr = inicio.toISOString().split('T')[0];
     const fimStr = fim.toISOString().split('T')[0];
 
+    this.carregandoHorarios = true;
     this.api.getHorariosDisponiveis(
       this.consultorioId,
       this.profissionalId || undefined,
@@ -581,7 +713,12 @@ export class AgendamentoComponent implements OnInit {
           res.filter(h => h.horarios.length > 0)
             .map(h => new Date(h.data).toISOString().split('T')[0])
         );
+        this.carregandoHorarios = false;
         if (this.dataSelecionada) this.carregarHorariosData(this.dataSelecionada);
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.carregandoHorarios = false;
         this.cdr.detectChanges();
       },
     });
@@ -593,9 +730,9 @@ export class AgendamentoComponent implements OnInit {
   }
 
   confirmar() {
+    this.submitted = true;
     if (!this.horarioSelecionado) return;
     if (!this.pacNome.trim() || !this.pacCelular.trim()) {
-      this.erro = 'Nome e Celular são obrigatórios.';
       this.cdr.detectChanges();
       return;
     }
@@ -638,8 +775,10 @@ export class AgendamentoComponent implements OnInit {
     this.pacCelular = '';
     this.erro = '';
     this.sucesso = '';
+    this.submitted = false;
     this.dataSelecionada = null;
     this.horariosData = [];
+    this.carregandoHorarios = false;
     this.buscaProf = '';
     this.buscaServ = '';
     this.limparHorarios();

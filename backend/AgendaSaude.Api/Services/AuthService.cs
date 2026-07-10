@@ -30,7 +30,7 @@ public class AuthService
             usuario.Perfil.ToString(), usuario.ConsultorioId);
 
         var c = usuario.Consultorio;
-        return new LoginResponse(token, usuario.Nome, usuario.Email,
+        return new LoginResponse(token, usuario.Id.ToString(), usuario.Nome, usuario.Email,
             usuario.Perfil.ToString(), usuario.ConsultorioId,
             c.NomeFantasia, c.Tema, c.CorPrimaria, c.CorSecundaria,
             c.CorDestaque, c.Icone, c.DiasAgenda);
@@ -89,13 +89,12 @@ public class AuthService
             ConsultorioId = consultorioId,
             Nome = request.Nome,
             Email = request.Email,
-            TelefoneCelular = request.TelefoneCelular,
-            SenhaHash = BCrypt.Net.BCrypt.HashPassword(request.Senha)
+            TelefoneCelular = request.TelefoneCelular
         };
 
         _context.Pacientes.Add(paciente);
         await _context.SaveChangesAsync();
 
-        return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email!);
+        return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email);
     }
 }

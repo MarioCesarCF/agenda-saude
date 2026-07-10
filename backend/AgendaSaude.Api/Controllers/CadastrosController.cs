@@ -8,7 +8,7 @@ namespace AgendaSaude.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = "AdminOnly")]
 public class CadastrosController : ControllerBase
 {
     private readonly CadastroService _cadastroService;

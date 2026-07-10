@@ -7,17 +7,20 @@ namespace AgendaSaude.Api.Services;
 
 public class TokenService
 {
-    private readonly IConfiguration _configuration;
+    private readonly string _jwtKey;
+    private readonly string? _issuer;
+    private readonly string? _audience;
 
-    public TokenService(IConfiguration configuration)
+    public TokenService(string jwtKey, string? issuer, string? audience)
     {
-        _configuration = configuration;
+        _jwtKey = jwtKey;
+        _issuer = issuer;
+        _audience = audience;
     }
 
     public string GerarToken(Guid usuarioId, string email, string nome, string perfil, Guid consultorioId)
     {
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
@@ -30,10 +33,10 @@ public class TokenService
         };
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: _issuer,
+            audience: _audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(7),
+            expires: DateTime.UtcNow.AddHours(4),
             signingCredentials: creds
         );
 

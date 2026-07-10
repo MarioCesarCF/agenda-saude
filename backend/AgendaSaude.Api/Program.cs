@@ -1,5 +1,8 @@
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -16,8 +19,16 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? "supersecretkeyagendasaude2026!@#$%¨&*()_+=";
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    jwtKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    Console.WriteLine("=================================================");
+    Console.WriteLine("AVISO: Jwt:Key nao configurada. Chave gerada automaticamente.");
+    Console.WriteLine($"JWT_KEY={jwtKey}");
+    Console.WriteLine("Configure a variavel de ambiente JWT_KEY para persistir.");
+    Console.WriteLine("=================================================");
+}
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -34,12 +45,36 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireClaim(ClaimTypes.Role, "Admin"));
+});
 
-builder.Services.AddScoped<TokenService>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("auth", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetTokenBucketLimiter(ip, _ =>
+            new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 10,
+                ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                TokensPerPeriod = 10,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
+});
+
+builder.Services.AddScoped<TokenService>(_ => new TokenService(jwtKey, builder.Configuration["Jwt:Issuer"], builder.Configuration["Jwt:Audience"]));
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AgendamentoService>();
 builder.Services.AddScoped<CadastroService>();
+builder.Services.AddScoped<UsuariosService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -51,9 +86,16 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowDevelopment", policy =>
     {
         policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+    });
+    options.AddPolicy("AllowProduction", policy =>
+    {
+        var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
+        policy.WithOrigins(origins)
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
 
@@ -64,7 +106,18 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseCors("AllowAll");
+app.UseExceptionHandler(error =>
+{
+    error.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync("{\"erro\":\"Erro interno do servidor\"}");
+    });
+});
+
+app.UseCors(app.Environment.IsDevelopment() ? "AllowDevelopment" : "AllowProduction");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -128,6 +181,25 @@ using (var scope = app.Services.CreateScope())
             CONSTRAINT "FK_ProfissionaisServicos_Profissionais_ProfissionalId" FOREIGN KEY ("ProfissionalId") REFERENCES "Profissionais"("Id") ON DELETE CASCADE,
             CONSTRAINT "FK_ProfissionaisServicos_Servicos_ServicoId" FOREIGN KEY ("ServicoId") REFERENCES "Servicos"("Id") ON DELETE CASCADE
         );
+    """);
+
+    // Create HistoricoAcoes table if it doesn't exist
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "HistoricoAcoes" (
+            "Id" UUID NOT NULL DEFAULT gen_random_uuid(),
+            "ConsultorioId" UUID NOT NULL,
+            "UsuarioId" UUID NULL,
+            "Acao" VARCHAR(50) NOT NULL,
+            "Entidade" VARCHAR(50) NOT NULL,
+            "EntidadeId" VARCHAR(50) NULL,
+            "Detalhes" VARCHAR(2000) NULL,
+            "DataHora" TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT "PK_HistoricoAcoes" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_HistoricoAcoes_Consultorios_ConsultorioId" FOREIGN KEY ("ConsultorioId") REFERENCES "Consultorios"("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_HistoricoAcoes_Usuarios_UsuarioId" FOREIGN KEY ("UsuarioId") REFERENCES "Usuarios"("Id") ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_HistoricoAcoes_ConsultorioId" ON "HistoricoAcoes" ("ConsultorioId");
+        CREATE INDEX IF NOT EXISTS "IX_HistoricoAcoes_DataHora" ON "HistoricoAcoes" ("DataHora");
     """);
 }
 

@@ -64,7 +64,7 @@ public class PublicoController : ControllerBase
     [HttpGet("configuracao")]
     public async Task<IActionResult> ObterConfiguracao(Guid consultorioId)
     {
-        var result = await _cadastroService.ObterConfiguracaoAsync(consultorioId);
+        var result = await _cadastroService.ObterConfiguracaoPublicaAsync(consultorioId);
         if (result is null) return NotFound();
         return Ok(result);
     }

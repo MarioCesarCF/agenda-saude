@@ -1,27 +1,29 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace AgendaSaude.Api.DTOs;
 
 public record ProfissionalRequest(
-    string Nome,
-    string TelefoneCelular,
+    [Required][MaxLength(200)] string Nome,
+    [Required][MaxLength(20)] string TelefoneCelular,
     string? Email,
     string? Especialidade,
     string? RegistroProfissional
 );
 
 public record ServicoRequest(
-    string Nome,
+    [Required][MaxLength(200)] string Nome,
     string? Descricao,
-    int DuracaoMinutos,
-    decimal Preco,
+    [Range(5, 480)] int DuracaoMinutos,
+    [Range(0, 99999.99)] decimal Preco,
     string? Cor,
-    bool SemProfissional = false
+    bool SemProfissional
 );
 
 public record PacienteCompletoRequest(
-    string Nome,
-    string Email,
-    string TelefoneCelular,
-    string? CPF,
+    [Required][MaxLength(200)] string Nome,
+    [Required][EmailAddress][MaxLength(100)] string Email,
+    [Required][MaxLength(20)] string TelefoneCelular,
+    [MaxLength(11)] string? CPF,
     DateTime? DataNascimento,
     string? Logradouro,
     string? Numero,
@@ -35,18 +37,21 @@ public record PacienteCompletoRequest(
 public record HorarioDisponivelRequest(
     Guid? ProfissionalId,
     Guid? ServicoId,
-    int DiaSemana,
-    string HoraInicio,
-    string HoraFim
+    [Range(0, 6)] int DiaSemana,
+    [Required] string HoraInicio,
+    [Required] string HoraFim
 );
 
 public record BloqueioAgendaRequest(
     Guid? ProfissionalId,
-    DateTime DataInicio,
-    DateTime DataFim,
+    [Required] DateTime DataInicio,
+    [Required] DateTime DataFim,
     string? Motivo
 );
 
-public record VincularServicoRequest(Guid ProfissionalId, Guid ServicoId);
+public record VincularServicoRequest(
+    [Required] Guid ProfissionalId,
+    [Required] Guid ServicoId
+);
 
 public record ProfissionalServicoResponse(Guid ProfissionalId, Guid ServicoId);

@@ -55,4 +55,5 @@ public class Consultorio
     public ICollection<Agendamento> Agendamentos { get; set; } = [];
     public ICollection<HorarioDisponivel> HorariosDisponiveis { get; set; } = [];
     public ICollection<BloqueioAgenda> BloqueiosAgenda { get; set; } = [];
+    public ICollection<HistoricoAcao> HistoricoAcoes { get; set; } = [];
 }

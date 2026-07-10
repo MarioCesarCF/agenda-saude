@@ -5,6 +5,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
+  id: string;
   nome: string;
   email: string;
   perfil: string;
@@ -126,4 +127,36 @@ export interface HorarioDisponivel {
   diaSemana: number;
   horaInicio: string;
   horaFim: string;
+}
+
+export interface Usuario {
+  id: string;
+  nome: string;
+  email: string;
+  perfil: string;
+  ativo: boolean;
+  dataCadastro: string;
+}
+
+export interface CriarUsuarioRequest {
+  nome: string;
+  email: string;
+  senha: string;
+  perfil: string;
+}
+
+export interface AtualizarUsuarioRequest {
+  nome: string;
+  email: string;
+  perfil?: string;
+}
+
+export interface AtualizarPerfilRequest {
+  nome: string;
+  email: string;
+}
+
+export interface AlterarSenhaRequest {
+  senhaAtual: string;
+  novaSenha: string;
 }

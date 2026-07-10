@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<HorarioDisponivel> HorariosDisponiveis => Set<HorarioDisponivel>();
     public DbSet<BloqueioAgenda> BloqueiosAgenda => Set<BloqueioAgenda>();
     public DbSet<ProfissionalServico> ProfissionaisServicos => Set<ProfissionalServico>();
+    public DbSet<HistoricoAcao> HistoricoAcoes => Set<HistoricoAcao>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -122,6 +123,21 @@ public class AppDbContext : DbContext
                   .WithMany(s => s.ProfissionaisServicos)
                   .HasForeignKey(ps => ps.ServicoId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<HistoricoAcao>(entity =>
+        {
+            entity.HasKey(h => h.Id);
+            entity.HasOne(h => h.Consultorio)
+                  .WithMany(c => c.HistoricoAcoes)
+                  .HasForeignKey(h => h.ConsultorioId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(h => h.Usuario)
+                  .WithMany()
+                  .HasForeignKey(h => h.UsuarioId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(h => h.ConsultorioId);
+            entity.HasIndex(h => h.DataHora);
         });
     }
 }

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace AgendaSaude.Api.DTOs;
 
 public record AgendamentoRequest(
@@ -32,7 +34,15 @@ public record HorariosDisponiveisResponse(
 );
 
 public record AtualizarStatusRequest(
-    string Status
+    [Required] string Status
+);
+
+public record ReagendarRequest(
+    [Required] DateTime NovaDataHoraInicio
+);
+
+public record ExcluirAgendamentoRequest(
+    string? Motivo
 );
 
 public record ProfissionalResponse(

@@ -110,8 +110,7 @@ public class CadastroService
             ConsultorioId = consultorioId,
             Nome = nome,
             Email = email,
-            TelefoneCelular = telefone,
-            SenhaHash = BCrypt.Net.BCrypt.HashPassword(telefone)
+            TelefoneCelular = telefone
         };
 
         _context.Pacientes.Add(paciente);
@@ -209,13 +208,24 @@ public class CadastroService
         return true;
     }
 
-    public async Task<ConfiguracaoResponse?> ObterConfiguracaoAsync(Guid consultorioId)
+    public async Task<ConfiguracaoPrivadaResponse?> ObterConfiguracaoAsync(Guid consultorioId)
     {
         return await _context.Consultorios
             .Where(c => c.Id == consultorioId)
-            .Select(c => new ConfiguracaoResponse(
+            .Select(c => new ConfiguracaoPrivadaResponse(
                 c.NomeFantasia, c.Email, c.Documento, c.TelefoneCelular,
                 c.Logradouro, c.Numero, c.Bairro, c.Cidade, c.Estado, c.CEP,
+                c.Tema, c.CorPrimaria, c.CorSecundaria, c.CorDestaque, c.Icone,
+                c.DiasAgenda))
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<ConfiguracaoPublicaResponse?> ObterConfiguracaoPublicaAsync(Guid consultorioId)
+    {
+        return await _context.Consultorios
+            .Where(c => c.Id == consultorioId && c.Ativo)
+            .Select(c => new ConfiguracaoPublicaResponse(
+                c.NomeFantasia, c.Cidade ?? "", c.Estado,
                 c.Tema, c.CorPrimaria, c.CorSecundaria, c.CorDestaque, c.Icone,
                 c.DiasAgenda))
             .FirstOrDefaultAsync();

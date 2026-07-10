@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using AgendaSaude.Api.DTOs;
 using AgendaSaude.Api.Services;
 
@@ -17,6 +18,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
@@ -27,6 +29,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("cadastro-consultorio")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> CadastrarConsultorio([FromBody] CadastroConsultorioRequest request)
     {
         var result = await _authService.CadastrarConsultorioAsync(request);
@@ -43,5 +46,12 @@ public class AuthController : ControllerBase
             return Conflict(new { erro = "Email já cadastrado neste consultório" });
 
         return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public IActionResult Logout()
+    {
+        return Ok(new { mensagem = "Logout realizado com sucesso" });
     }
 }

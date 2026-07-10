@@ -10,6 +10,7 @@ import type {
   ConfiguracaoUpdateRequest,
   ProfissionalServico,
   HorarioDisponivel,
+  Usuario,
 } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
@@ -53,10 +54,12 @@ export class ApiService {
     return this.http.delete(`${this.baseUrl}/cadastros/servicos/${id}`);
   }
 
-  getAgendamentos(data?: string, profissionalId?: string) {
+  getAgendamentos(data?: string, profissionalId?: string, dataInicio?: string, dataFim?: string) {
     let params = new HttpParams();
     if (data) params = params.set('data', data);
     if (profissionalId) params = params.set('profissionalId', profissionalId);
+    if (dataInicio) params = params.set('dataInicio', dataInicio);
+    if (dataFim) params = params.set('dataFim', dataFim);
     return this.http.get<Agendamento[]>(`${this.baseUrl}/agendamento`, { params });
   }
 
@@ -66,6 +69,14 @@ export class ApiService {
 
   cancelarAgendamento(id: string) {
     return this.http.patch(`${this.baseUrl}/agendamento/${id}/cancelar`, {});
+  }
+
+  excluirAgendamento(id: string, motivo?: string) {
+    return this.http.delete(`${this.baseUrl}/agendamento/${id}`, { body: { motivo } });
+  }
+
+  reagendarAgendamento(id: string, novaDataHoraInicio: string) {
+    return this.http.patch<Agendamento>(`${this.baseUrl}/agendamento/${id}/reagendar`, { novaDataHoraInicio });
   }
 
   atualizarStatusAgendamento(id: string, status: string) {
@@ -156,5 +167,33 @@ export class ApiService {
 
   desvincularServico(data: { profissionalId: string; servicoId: string }) {
     return this.http.delete(`${this.baseUrl}/cadastros/vinculos`, { body: data });
+  }
+
+  getUsuarios() {
+    return this.http.get<Usuario[]>(`${this.baseUrl}/usuarios`);
+  }
+
+  criarUsuario(data: { nome: string; email: string; senha: string; perfil: string }) {
+    return this.http.post<Usuario>(`${this.baseUrl}/usuarios`, data);
+  }
+
+  atualizarUsuario(id: string, data: { nome: string; email: string; perfil?: string }) {
+    return this.http.put<Usuario>(`${this.baseUrl}/usuarios/${id}`, data);
+  }
+
+  excluirUsuario(id: string) {
+    return this.http.delete(`${this.baseUrl}/usuarios/${id}`);
+  }
+
+  obterPerfil() {
+    return this.http.get<Usuario>(`${this.baseUrl}/usuarios/perfil`);
+  }
+
+  atualizarPerfil(data: { nome: string; email: string }) {
+    return this.http.put<Usuario>(`${this.baseUrl}/usuarios/perfil`, data);
+  }
+
+  alterarSenha(data: { senhaAtual: string; novaSenha: string }) {
+    return this.http.patch<{ mensagem: string }>(`${this.baseUrl}/usuarios/perfil/senha`, data);
   }
 }

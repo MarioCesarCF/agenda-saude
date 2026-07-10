@@ -9,6 +9,8 @@ import { ProfissionaisComponent } from './profissionais.component';
 import { ServicosComponent } from './servicos.component';
 import { ConfiguracaoComponent } from './configuracao.component';
 import { HorariosComponent } from './horarios.component';
+import { UsuariosComponent } from './usuarios.component';
+import { PerfilComponent } from './perfil.component';
 
 @NgModule({
   declarations: [
@@ -19,6 +21,8 @@ import { HorariosComponent } from './horarios.component';
     ServicosComponent,
     ConfiguracaoComponent,
     HorariosComponent,
+    UsuariosComponent,
+    PerfilComponent,
   ],
   imports: [CommonModule, AdminRoutingModule, FormsModule, ReactiveFormsModule],
 })

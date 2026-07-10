@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using AgendaSaude.Api.Data;
 using AgendaSaude.Api.DTOs;
@@ -15,7 +16,8 @@ public class AgendamentoService
     }
 
     public async Task<List<AgendamentoResponse>> ListarAgendamentosAsync(
-        Guid consultorioId, DateTime? data = null, Guid? profissionalId = null)
+        Guid consultorioId, DateTime? data = null, Guid? profissionalId = null,
+        DateTime? dataInicio = null, DateTime? dataFim = null)
     {
         var query = _context.Agendamentos
             .Include(a => a.Profissional)
@@ -23,7 +25,13 @@ public class AgendamentoService
             .Include(a => a.Paciente)
             .Where(a => a.ConsultorioId == consultorioId);
 
-        if (data.HasValue)
+        if (dataInicio.HasValue && dataFim.HasValue)
+        {
+            var inicio = dataInicio.Value.Date;
+            var fim = dataFim.Value.Date.AddDays(1);
+            query = query.Where(a => a.DataHoraInicio >= inicio && a.DataHoraInicio < fim);
+        }
+        else if (data.HasValue)
         {
             var dia = data.Value.Date;
             query = query.Where(a => a.DataHoraInicio.Date == dia);
@@ -133,6 +141,110 @@ public class AgendamentoService
         agendamento.Status = StatusAgendamento.Cancelado;
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<bool> ExcluirAgendamentoAsync(
+        Guid id, Guid consultorioId, Guid usuarioId, string? motivo)
+    {
+        var agendamento = await _context.Agendamentos
+            .Include(a => a.Servico)
+            .Include(a => a.Paciente)
+            .FirstOrDefaultAsync(a => a.Id == id && a.ConsultorioId == consultorioId);
+        if (agendamento is null) return false;
+
+        var detalhes = JsonSerializer.Serialize(new
+        {
+            profissionalId = agendamento.ProfissionalId,
+            servicoId = agendamento.ServicoId,
+            servicoNome = agendamento.Servico?.Nome,
+            pacienteId = agendamento.PacienteId,
+            pacienteNome = agendamento.Paciente?.Nome,
+            dataHoraInicio = agendamento.DataHoraInicio,
+            dataHoraFim = agendamento.DataHoraFim,
+            statusAnterior = agendamento.Status.ToString(),
+            motivo
+        });
+
+        agendamento.Status = StatusAgendamento.Cancelado;
+        agendamento.Observacoes = motivo;
+
+        _context.HistoricoAcoes.Add(new HistoricoAcao
+        {
+            ConsultorioId = consultorioId,
+            UsuarioId = usuarioId,
+            Acao = "ExcluirAgendamento",
+            Entidade = "Agendamento",
+            EntidadeId = id.ToString(),
+            Detalhes = detalhes
+        });
+
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<AgendamentoResponse?> ReagendarAsync(
+        Guid id, Guid consultorioId, Guid usuarioId, DateTime novaDataHoraInicio)
+    {
+        var agendamento = await _context.Agendamentos
+            .Include(a => a.Profissional)
+            .Include(a => a.Servico)
+            .Include(a => a.Paciente)
+            .FirstOrDefaultAsync(a => a.Id == id && a.ConsultorioId == consultorioId);
+        if (agendamento is null) return null;
+
+        if (agendamento.Status != StatusAgendamento.Agendado
+            && agendamento.Status != StatusAgendamento.Confirmado)
+            return null;
+
+        var servico = agendamento.Servico;
+        var novaDataFim = novaDataHoraInicio.AddMinutes(servico.DuracaoMinutos);
+
+        if (agendamento.ProfissionalId.HasValue)
+        {
+            var conflito = await _context.Agendamentos
+                .AnyAsync(a => a.Id != id
+                    && a.ProfissionalId == agendamento.ProfissionalId.Value
+                    && (a.Status == StatusAgendamento.Agendado || a.Status == StatusAgendamento.Confirmado)
+                    && a.DataHoraInicio < novaDataFim
+                    && a.DataHoraFim > novaDataHoraInicio);
+
+            if (conflito) return null;
+        }
+
+        var dataAnterior = agendamento.DataHoraInicio;
+        var dataAnteriorFim = agendamento.DataHoraFim;
+
+        var detalhes = JsonSerializer.Serialize(new
+        {
+            de = new { dataHoraInicio = dataAnterior, dataHoraFim = dataAnteriorFim },
+            para = new { dataHoraInicio = novaDataHoraInicio, dataHoraFim = novaDataFim },
+            profissionalNome = agendamento.Profissional?.Nome,
+            servicoNome = agendamento.Servico?.Nome,
+            pacienteNome = agendamento.Paciente?.Nome
+        });
+
+        agendamento.DataHoraInicio = novaDataHoraInicio;
+        agendamento.DataHoraFim = novaDataFim;
+
+        _context.HistoricoAcoes.Add(new HistoricoAcao
+        {
+            ConsultorioId = consultorioId,
+            UsuarioId = usuarioId,
+            Acao = "Reagendar",
+            Entidade = "Agendamento",
+            EntidadeId = id.ToString(),
+            Detalhes = detalhes
+        });
+
+        await _context.SaveChangesAsync();
+
+        return new AgendamentoResponse(
+            agendamento.Id, agendamento.ProfissionalId,
+            agendamento.Profissional?.Nome ?? "A definir",
+            agendamento.ServicoId, agendamento.Servico.Nome, agendamento.Servico.Preco,
+            agendamento.PacienteId, agendamento.Paciente.Nome,
+            agendamento.DataHoraInicio, agendamento.DataHoraFim,
+            agendamento.Status.ToString(), agendamento.DataCriacao);
     }
 
     public async Task<bool> AtualizarStatusAsync(Guid id, Guid consultorioId, StatusAgendamento novoStatus)

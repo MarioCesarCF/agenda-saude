@@ -8,6 +8,7 @@ import type { LoginRequest, LoginResponse } from '../models/models';
 export class AuthService {
   private readonly apiUrl = 'http://localhost:5268/api/auth';
   readonly token = signal<string | null>(null);
+  readonly usuarioId = signal<string>('');
   readonly nome = signal<string>('');
   readonly email = signal<string>('');
   readonly perfil = signal<string>('');
@@ -46,6 +47,10 @@ export class AuthService {
   }
 
   logout() {
+    const token = this.token();
+    if (token) {
+      this.http.post(`${this.apiUrl}/logout`, {}).subscribe({ next: () => {}, error: () => {} });
+    }
     localStorage.removeItem('auth');
     this.token.set(null);
     this.router.navigate(['/login']);
@@ -71,9 +76,14 @@ export class AuthService {
     return this.token() !== null;
   }
 
+  isAdmin() {
+    return this.perfil() === 'Admin';
+  }
+
   private setAuth(data: LoginResponse) {
     localStorage.setItem('auth', JSON.stringify(data));
     this.token.set(data.token);
+    this.usuarioId.set(data.id ?? '');
     this.nome.set(data.nome);
     this.email.set(data.email);
     this.perfil.set(data.perfil);
