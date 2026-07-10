@@ -20,6 +20,18 @@
 - **CORS:** AllowAll (dev only)
 - **JSON:** `camelCase` + `ReferenceHandler.IgnoreCycles`
 
+## Git workflow
+- **`master`** is the stable branch — never push directly
+- Every task/feature must be done on a **feature branch** (`feat/xxx`, `fix/xxx`, `refactor/xxx`)
+- Branch naming: `feat/dark-mode-cards`, `fix/patient-lookup-bug`, `refactor/agendamento-flow`, etc.
+- Workflow per task:
+  1. `git checkout master && git pull`
+  2. `git checkout -b feat/nome-da-tarefa`
+  3. Develop + commit(s)
+  4. `git push -u origin feat/nome-da-tarefa`
+  5. Merge to `master` (via PR or locally)
+- Commits should be descriptive: `feat: dark mode cards using [style.background-color]`, `fix: patient lookup by name+phone when email is empty`
+
 ## API structure
 | Route | Auth | Purpose |
 |-------|------|---------|
