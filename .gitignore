@@ -1,0 +1,18 @@
+# .NET
+backend/**/bin/
+backend/**/obj/
+backend/**/*.user
+
+# Angular
+frontend/dist/
+frontend/.angular/
+frontend/node_modules/
+
+# IDE
+.vs/
+.vscode/
+*.swp
+*.swo
+
+# Connection strings
+**/appsettings.Development.json
