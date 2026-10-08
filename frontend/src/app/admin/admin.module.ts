@@ -11,6 +11,8 @@ import { ConfiguracaoComponent } from './configuracao.component';
 import { HorariosComponent } from './horarios.component';
 import { UsuariosComponent } from './usuarios.component';
 import { PerfilComponent } from './perfil.component';
+import { EsqueciSenhaComponent } from './esqueci-senha.component';
+import { ResetarSenhaComponent } from './resetar-senha.component';
 
 @NgModule({
   declarations: [
@@ -23,6 +25,8 @@ import { PerfilComponent } from './perfil.component';
     HorariosComponent,
     UsuariosComponent,
     PerfilComponent,
+    EsqueciSenhaComponent,
+    ResetarSenhaComponent,
   ],
   imports: [CommonModule, AdminRoutingModule, FormsModule, ReactiveFormsModule],
 })

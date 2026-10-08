@@ -1,5 +1,5 @@
 import { Component, ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
 @Component({
@@ -60,8 +60,15 @@ import { AuthService } from '../services/auth.service';
                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
               />
             </div>
+            <div class="text-right">
+              <a routerLink="/login/esqueci-senha" class="text-sm text-emerald-600 hover:underline"
+                >Esqueci minha senha?</a
+              >
+            </div>
             @if (erro) {
             <p class="text-red-500 text-sm">{{ erro }}</p>
+            } @if (sucesso) {
+            <p class="text-emerald-600 text-sm">{{ sucesso }}</p>
             }
             <button
               type="submit"
@@ -203,8 +210,13 @@ export class LoginComponent {
   constructor(
     private auth: AuthService,
     private router: Router,
+    private route: ActivatedRoute,
     private cdr: ChangeDetectorRef,
-  ) {}
+  ) {
+    if (this.route.snapshot.queryParamMap.get('reset') === 'ok') {
+      this.sucesso = 'Senha redefinida com sucesso! Faça login.';
+    }
+  }
 
   async entrar() {
     this.erro = '';

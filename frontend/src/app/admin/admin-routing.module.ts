@@ -9,11 +9,15 @@ import { ConfiguracaoComponent } from './configuracao.component';
 import { HorariosComponent } from './horarios.component';
 import { UsuariosComponent } from './usuarios.component';
 import { PerfilComponent } from './perfil.component';
+import { EsqueciSenhaComponent } from './esqueci-senha.component';
+import { ResetarSenhaComponent } from './resetar-senha.component';
 import { AuthGuard } from '../guards/auth.guard';
 import { AdminGuard } from '../guards/admin.guard';
 
 const routes: Routes = [
   { path: '', component: LoginComponent },
+  { path: 'esqueci-senha', component: EsqueciSenhaComponent },
+  { path: 'resetar-senha', component: ResetarSenhaComponent },
   {
     path: 'dashboard',
     component: AdminLayoutComponent,

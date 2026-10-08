@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<BloqueioAgenda> BloqueiosAgenda => Set<BloqueioAgenda>();
     public DbSet<ProfissionalServico> ProfissionaisServicos => Set<ProfissionalServico>();
     public DbSet<HistoricoAcao> HistoricoAcoes => Set<HistoricoAcao>();
+    public DbSet<ResetToken> ResetTokens => Set<ResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -138,6 +139,17 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.SetNull);
             entity.HasIndex(h => h.ConsultorioId);
             entity.HasIndex(h => h.DataHora);
+        });
+
+        modelBuilder.Entity<ResetToken>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.TokenHash).HasMaxLength(200).IsRequired();
+            entity.HasOne(t => t.Usuario)
+                  .WithMany()
+                  .HasForeignKey(t => t.UsuarioId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(t => t.UsuarioId);
         });
     }
 }

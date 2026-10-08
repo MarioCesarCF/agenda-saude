@@ -46,6 +46,14 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/cadastro-paciente/${consultorioId}`, data);
   }
 
+  solicitarReset(email: string) {
+    return this.http.post(`${this.apiUrl}/solicitar-reset`, { email });
+  }
+
+  resetarSenha(token: string, novaSenha: string) {
+    return this.http.post(`${this.apiUrl}/resetar-senha`, { token, novaSenha });
+  }
+
   logout() {
     const token = this.token();
     if (token) {

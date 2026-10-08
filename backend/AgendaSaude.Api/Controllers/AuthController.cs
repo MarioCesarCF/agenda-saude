@@ -11,10 +11,12 @@ namespace AgendaSaude.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly AuthService _authService;
+    private readonly ResetSenhaService _resetSenhaService;
 
-    public AuthController(AuthService authService)
+    public AuthController(AuthService authService, ResetSenhaService resetSenhaService)
     {
         _authService = authService;
+        _resetSenhaService = resetSenhaService;
     }
 
     [HttpPost("login")]
@@ -47,6 +49,25 @@ public class AuthController : ControllerBase
             return Conflict(new { erro = "Email já cadastrado neste consultório" });
 
         return Ok(result);
+    }
+
+    [HttpPost("solicitar-reset")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> SolicitarReset([FromBody] SolicitarResetRequest request)
+    {
+        await _resetSenhaService.SolicitarResetAsync(request.Email);
+        return Ok(new { mensagem = "Se o email estiver cadastrado, você receberá um código de recuperação." });
+    }
+
+    [HttpPost("resetar-senha")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ResetarSenha([FromBody] ResetarSenhaRequest request)
+    {
+        var ok = await _resetSenhaService.ResetarSenhaAsync(request.Token, request.NovaSenha);
+        if (!ok)
+            return BadRequest(new { erro = "Código inválido ou expirado" });
+
+        return Ok(new { mensagem = "Senha redefinida com sucesso" });
     }
 
     [Authorize]

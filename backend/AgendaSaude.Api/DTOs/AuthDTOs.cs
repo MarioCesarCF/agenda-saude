@@ -93,3 +93,12 @@ public record CadastroPacienteRequest(
 );
 
 public record CadastroPacienteResponse(Guid Id, string Nome, string? Email);
+
+public record SolicitarResetRequest(
+    [Required][EmailAddress][MaxLength(100)] string Email
+);
+
+public record ResetarSenhaRequest(
+    [Required][MaxLength(20)] string Token,
+    [Required][MinLength(6)][MaxLength(100)] string NovaSenha
+);

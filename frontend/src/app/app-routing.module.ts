@@ -16,6 +16,8 @@ const routes: Routes = [
     path: 'p/:consultorioId',
     loadChildren: () => import('./publico/publico.module').then((m) => m.PublicoModule),
   },
+  { path: 'esqueci-senha', redirectTo: '/login/esqueci-senha', pathMatch: 'full' },
+  { path: 'resetar-senha', redirectTo: '/login/resetar-senha', pathMatch: 'full' },
   { path: '', redirectTo: '/login', pathMatch: 'full' },
   { path: '**', redirectTo: '/login' },
 ];

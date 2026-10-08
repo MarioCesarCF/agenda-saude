@@ -39,6 +39,8 @@
 | Route | Auth | Purpose |
 |-------|------|---------|
 | `POST /api/auth/login` | No | Admin login (returns token + nome + tema + cores + icone) |
+| `POST /api/auth/solicitar-reset` | No | Request password reset code by email (rate limited, no user enumeration) |
+| `POST /api/auth/resetar-senha` | No | Reset password with 6-digit code (body `{ token, novaSenha }`) |
 | `POST /api/auth/cadastro-consultorio` | No | Register clinic (includes optional theme fields) |
 | `POST /api/usuarios` | JWT + AdminOnly | Create user (Atendente/Profissional) |
 | `PUT /api/usuarios/{id}` | JWT + AdminOnly | Update user |
@@ -66,6 +68,8 @@
 | Path | Module | Description |
 |------|--------|-------------|
 | `/login` | Admin | Login page (Entrar + Cadastrar Consultório tabs) |
+| `/login/esqueci-senha` (`/esqueci-senha` redirects here) | Admin | Request password reset code by email |
+| `/login/resetar-senha` (`/resetar-senha` redirects here) | Admin | New password form (`?token=` pre-fills the code) |
 | `/admin/dashboard` | Admin | Full month calendar with appointment dots + "Hoje" button |
 | `/admin/dashboard/profissionais` | Admin | Manage professionals + vinculação de serviços |
 | `/admin/dashboard/servicos` | Admin | Manage services |
@@ -91,7 +95,7 @@
 - Connection string in `appsettings.Development.json` (gitignored); fallback in `appsettings.json`
 - Default JWT key in `appsettings.json` — **must** override in production
 - Portuguese locale: `registerLocaleData(localePt, 'pt-BR')` + `{ provide: LOCALE_ID, useValue: 'pt-BR' }` in `app-module.ts`. All `date` pipe formats render in Portuguese. `toLocaleDateString('pt-BR')` also used in some places
-- Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 44 tests)
+- Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 39 tests)
 - Frontend tests: Vitest v4 + jsdom (21 tests across 4 files: `auth.service.spec.ts`, `loading.service.spec.ts`, `auth.interceptor.spec.ts`, `loading.interceptor.spec.ts`)
 
 ## Patient booking wizard (AgendamentoComponent)

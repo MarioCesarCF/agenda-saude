@@ -79,7 +79,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
 
@@ -146,6 +146,8 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AgendamentoService>();
 builder.Services.AddScoped<CadastroService>();
 builder.Services.AddScoped<UsuariosService>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<ResetSenhaService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -283,6 +285,22 @@ using (var scope = app.Services.CreateScope())
         );
         CREATE INDEX IF NOT EXISTS "IX_HistoricoAcoes_ConsultorioId" ON "HistoricoAcoes" ("ConsultorioId");
         CREATE INDEX IF NOT EXISTS "IX_HistoricoAcoes_DataHora" ON "HistoricoAcoes" ("DataHora");
+    """);
+
+    // Create ResetTokens table if it doesn't exist
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "ResetTokens" (
+            "Id" UUID NOT NULL DEFAULT gen_random_uuid(),
+            "UsuarioId" UUID NOT NULL,
+            "TokenHash" VARCHAR(200) NOT NULL,
+            "CriadoEm" TIMESTAMP NOT NULL DEFAULT NOW(),
+            "ExpiraEm" TIMESTAMP NOT NULL,
+            "Usado" BOOLEAN NOT NULL DEFAULT FALSE,
+            CONSTRAINT "PK_ResetTokens" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_ResetTokens_Usuarios_UsuarioId" FOREIGN KEY ("UsuarioId") REFERENCES "Usuarios"("Id") ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS "IX_ResetTokens_UsuarioId" ON "ResetTokens" ("UsuarioId");
+        CREATE INDEX IF NOT EXISTS "IX_ResetTokens_TokenHash" ON "ResetTokens" ("TokenHash");
     """);
 }
 
