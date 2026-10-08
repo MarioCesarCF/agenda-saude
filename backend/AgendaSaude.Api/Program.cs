@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using AgendaSaude.Api.Data;
@@ -11,8 +13,19 @@ using AgendaSaude.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Database=agenda_saude;Username=postgres;Password=postgres";
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    if (builder.Environment.IsDevelopment())
+    {
+        connectionString = "Host=localhost;Database=agenda_saude;Username=postgres;Password=postgres";
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "ConnectionStrings:DefaultConnection não configurada. Defina a variável de ambiente ConnectionStrings__DefaultConnection.");
+    }
+}
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
@@ -22,12 +35,23 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
-    jwtKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-    Console.WriteLine("=================================================");
-    Console.WriteLine("AVISO: Jwt:Key nao configurada. Chave gerada automaticamente.");
-    Console.WriteLine($"JWT_KEY={jwtKey}");
-    Console.WriteLine("Configure a variavel de ambiente JWT_KEY para persistir.");
-    Console.WriteLine("=================================================");
+    if (builder.Environment.IsDevelopment())
+    {
+        jwtKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        Console.WriteLine("AVISO: Jwt:Key não configurada. Gerando chave EFÊMERA de desenvolvimento (tokens serão invalidados a cada reinício).");
+        Console.WriteLine("Para persistir, defina 'Jwt:Key' (ex.: variável de ambiente Jwt__Key) com ao menos 32 caracteres.");
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "Jwt:Key não configurada. Defina 'Jwt:Key' (ex.: variável de ambiente Jwt__Key) com ao menos 32 caracteres aleatórios.");
+    }
+}
+
+if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+{
+    throw new InvalidOperationException(
+        "'Jwt:Key' deve ter no mínimo 32 bytes (256 bits) para assinatura HMAC-SHA256.");
 }
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -41,7 +65,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "AgendaSaude",
             ValidAudience = builder.Configuration["Jwt:Audience"] ?? "AgendaSaudeApp",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
 
@@ -51,9 +76,43 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim(ClaimTypes.Role, "Admin"));
 });
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            "{\"erro\":\"Muitas requisições. Tente novamente em instantes.\"}", cancellationToken);
+    };
+
+    // Limite global: por usuário autenticado, com fallback para IP.
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+    {
+        var usuarioId = httpContext.User.Identity?.IsAuthenticated == true
+            ? httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            : null;
+
+        var chave = !string.IsNullOrEmpty(usuarioId)
+            ? $"user:{usuarioId}"
+            : $"ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(chave, _ =>
+            new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 200,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
 
     options.AddPolicy("auth", httpContext =>
     {
@@ -65,6 +124,18 @@ builder.Services.AddRateLimiter(options =>
                 ReplenishmentPeriod = TimeSpan.FromMinutes(1),
                 TokensPerPeriod = 10,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
+
+    options.AddPolicy("publico", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ =>
+            new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             });
     });
@@ -93,32 +164,44 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowProduction", policy =>
     {
         var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
-        policy.WithOrigins(origins)
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (origins.Length > 0)
+        {
+            policy.WithOrigins(origins).AllowAnyMethod().AllowAnyHeader();
+        }
     });
 });
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+app.UseForwardedHeaders();
 
 app.UseExceptionHandler(error =>
 {
     error.Run(async context =>
     {
+        var feature = context.Features.Get<IExceptionHandlerFeature>();
+        app.Logger.LogError(feature?.Error, "Erro não tratado em {Metodo} {Path}",
+            context.Request.Method, context.Request.Path);
+
         context.Response.StatusCode = 500;
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsync("{\"erro\":\"Erro interno do servidor\"}");
     });
 });
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
+else
+{
+    app.MapOpenApi();
+}
+
 app.UseCors(app.Environment.IsDevelopment() ? "AllowDevelopment" : "AllowProduction");
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
 

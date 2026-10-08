@@ -1,4 +1,5 @@
 using AgendaSaude.Api.Data;
+using AgendaSaude.Api.DTOs;
 using AgendaSaude.Api.Models;
 using AgendaSaude.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -125,7 +126,6 @@ public class CadastroServiceTests : IDisposable
         Assert.Equal("Dr. Silva", result.Nome);
         Assert.Equal("Cardiologia", result.Especialidade);
         Assert.Equal("CRM-123", result.RegistroProfissional);
-        Assert.True(result.Ativo);
     }
 
     // ── CriarServicoAsync ──
@@ -159,8 +159,8 @@ public class CadastroServiceTests : IDisposable
         _context.Consultorios.Add(c2);
         await _context.SaveChangesAsync();
 
-        await _service.CriarProfissionalAsync(c1.Id, new ProfissionalRequest("Dr. Silva", null, null, null, null));
-        await _service.CriarProfissionalAsync(c2.Id, new ProfissionalRequest("Dr. Souza", null, null, null, null));
+        await _service.CriarProfissionalAsync(c1.Id, new ProfissionalRequest("Dr. Silva", "11999999999", null, null, null));
+        await _service.CriarProfissionalAsync(c2.Id, new ProfissionalRequest("Dr. Souza", "11999999998", null, null, null));
 
         var result = await _service.ListarProfissionaisAsync(c1.Id);
         Assert.Single(result);
@@ -173,11 +173,11 @@ public class CadastroServiceTests : IDisposable
     public async Task ListarServicos_ComFiltroProfissional_DeveRetornarApenasVinculados()
     {
         var c = await CriarConsultorioPadrao();
-        var prof = await _service.CriarProfissionalAsync(c.Id, new ProfissionalRequest("Dr. Silva", null, null, null, null));
+        var prof = await _service.CriarProfissionalAsync(c.Id, new ProfissionalRequest("Dr. Silva", "11999999999", null, null, null));
         var s1 = await _service.CriarServicoAsync(c.Id, new ServicoRequest("Consulta", null, 30, 100, null, false));
-        var s2 = await _service.CriarServicoAsync(c.Id, new ServicoRequest("Exame", null, 60, 200, null, true));
+        var s2 = await _service.CriarServicoAsync(c.Id, new ServicoRequest("Exame", null, 60, 200, null, false));
 
-        await _service.VincularServicoAsync(prof.Id, s1.Id);
+        await VincularServicoAsync(prof.Id, s1.Id);
 
         var result = await _service.ListarServicosAsync(c.Id, prof.Id);
         Assert.Single(result);

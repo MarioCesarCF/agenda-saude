@@ -39,6 +39,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("cadastro-paciente/{consultorioId:guid}")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> CadastrarPaciente(Guid consultorioId, [FromBody] CadastroPacienteRequest request)
     {
         var result = await _authService.CadastrarPacienteAsync(consultorioId, request);

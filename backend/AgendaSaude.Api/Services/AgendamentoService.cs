@@ -58,6 +58,12 @@ public class AgendamentoService
             .FirstOrDefaultAsync(s => s.Id == request.ServicoId && s.ConsultorioId == consultorioId);
         if (servico is null) return null;
 
+        var pacienteValido = await _context.Pacientes
+            .AnyAsync(p => p.Id == pacienteId && p.ConsultorioId == consultorioId);
+        if (!pacienteValido) return null;
+
+        if (request.DataHoraInicio < DateTime.UtcNow.AddMinutes(-5)) return null;
+
         var dataFim = request.DataHoraInicio.AddMinutes(servico.DuracaoMinutos);
 
         Guid? profissionalId = request.ProfissionalId;
@@ -66,7 +72,8 @@ public class AgendamentoService
         {
             var profissionaisVinculados = await _context.ProfissionaisServicos
                 .Where(ps => ps.ServicoId == servico.Id)
-                .Select(ps => ps.ProfissionalId)
+                .Join(_context.Profissionais.Where(p => p.ConsultorioId == consultorioId && p.Ativo),
+                    ps => ps.ProfissionalId, p => p.Id, (ps, p) => p.Id)
                 .ToListAsync();
 
             var idsParaBuscar = profissionaisVinculados.Count > 0
@@ -96,6 +103,11 @@ public class AgendamentoService
 
         if (profissionalId.HasValue)
         {
+            var profissionalValido = await _context.Profissionais
+                .AnyAsync(p => p.Id == profissionalId.Value
+                    && p.ConsultorioId == consultorioId && p.Ativo);
+            if (!profissionalValido) return null;
+
             var conflito = await _context.Agendamentos
                 .AnyAsync(a => a.ProfissionalId == profissionalId.Value
                     && (a.Status == StatusAgendamento.Agendado || a.Status == StatusAgendamento.Confirmado)
@@ -265,8 +277,12 @@ public class AgendamentoService
         var inicio = dataInicio ?? DateTime.Today;
         var fim = dataFim ?? DateTime.Today.AddDays(14);
 
+        var profissionalValido = await _context.Profissionais
+            .AnyAsync(p => p.Id == profissionalId && p.ConsultorioId == consultorioId);
+        if (!profissionalValido) return [];
+
         var servico = servicoId.HasValue
-            ? await _context.Servicos.FirstOrDefaultAsync(s => s.Id == servicoId.Value)
+            ? await _context.Servicos.FirstOrDefaultAsync(s => s.Id == servicoId.Value && s.ConsultorioId == consultorioId)
             : null;
         var slotDuracao = servico?.DuracaoMinutos ?? 30;
         var slotSpan = TimeSpan.FromMinutes(slotDuracao);
@@ -332,7 +348,8 @@ public class AgendamentoService
         var inicio = dataInicio ?? DateTime.Today;
         var fim = dataFim ?? DateTime.Today.AddDays(14);
 
-        var servico = await _context.Servicos.FirstOrDefaultAsync(s => s.Id == servicoId);
+        var servico = await _context.Servicos
+            .FirstOrDefaultAsync(s => s.Id == servicoId && s.ConsultorioId == consultorioId);
         if (servico is null) return [];
 
         var slotDuracao = servico.DuracaoMinutos;

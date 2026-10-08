@@ -1,4 +1,6 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using AgendaSaude.Api.DTOs;
 using AgendaSaude.Api.Services;
 
@@ -6,6 +8,7 @@ namespace AgendaSaude.Api.Controllers;
 
 [ApiController]
 [Route("api/publico/{consultorioId:guid}")]
+[EnableRateLimiting("publico")]
 public class PublicoController : ControllerBase
 {
     private readonly CadastroService _cadastroService;
@@ -73,6 +76,15 @@ public class PublicoController : ControllerBase
     public async Task<IActionResult> Agendar(
         Guid consultorioId, [FromBody] AgendamentoPublicoRequest request)
     {
+        var config = await _cadastroService.ObterConfiguracaoPublicaAsync(consultorioId);
+        if (config is null)
+            return NotFound(new { erro = "Consultório não encontrado" });
+
+        var primeiraData = DateTime.Today.AddDays(1);
+        var ultimaData = DateTime.Today.AddDays(config.DiasAgenda);
+        if (request.DataHoraInicio.Date < primeiraData || request.DataHoraInicio.Date > ultimaData)
+            return BadRequest(new { erro = "Data fora do período de agendamento" });
+
         var paciente = await _cadastroService.CriarOuBuscarPacienteAsync(
             consultorioId, request.Nome, request.Email, request.TelefoneCelular);
 
@@ -90,7 +102,7 @@ public record AgendamentoPublicoRequest(
     Guid? ProfissionalId,
     Guid ServicoId,
     DateTime DataHoraInicio,
-    string Nome,
-    string? Email,
-    string TelefoneCelular
+    [Required][MaxLength(200)] string Nome,
+    [EmailAddress][MaxLength(100)] string? Email,
+    [Required][MaxLength(20)] string TelefoneCelular
 );

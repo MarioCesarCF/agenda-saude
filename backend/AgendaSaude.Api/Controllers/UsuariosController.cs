@@ -1,7 +1,5 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using AgendaSaude.Api.DTOs;
 using AgendaSaude.Api.Services;
 
@@ -10,7 +8,7 @@ namespace AgendaSaude.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class UsuariosController : ControllerBase
+public class UsuariosController : ApiControllerBase
 {
     private readonly UsuariosService _usuariosService;
 
@@ -19,23 +17,21 @@ public class UsuariosController : ControllerBase
         _usuariosService = usuariosService;
     }
 
-    private Guid ConsultorioId => Guid.Parse(User.FindFirstValue("ConsultorioId")!);
-    private Guid UsuarioId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
     [HttpGet]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Listar()
     {
-        var result = await _usuariosService.ListarUsuariosAsync(ConsultorioId);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _usuariosService.ListarUsuariosAsync(consultorioId);
         return Ok(result);
     }
 
     [HttpPost]
     [Authorize(Policy = "AdminOnly")]
-    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Criar([FromBody] CriarUsuarioRequest request)
     {
-        var result = await _usuariosService.CriarUsuarioAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _usuariosService.CriarUsuarioAsync(consultorioId, request);
         if (result is null)
             return Conflict(new { erro = "Email já cadastrado neste consultório" });
         return Ok(result);
@@ -45,7 +41,8 @@ public class UsuariosController : ControllerBase
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Atualizar(Guid id, [FromBody] AtualizarUsuarioRequest request)
     {
-        var result = await _usuariosService.AtualizarUsuarioAsync(ConsultorioId, id, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _usuariosService.AtualizarUsuarioAsync(consultorioId, id, request);
         if (result is null)
             return NotFound(new { erro = "Usuário não encontrado ou email já em uso" });
         return Ok(result);
@@ -55,7 +52,10 @@ public class UsuariosController : ControllerBase
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Excluir(Guid id)
     {
-        var result = await _usuariosService.ExcluirUsuarioAsync(ConsultorioId, id, UsuarioId);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        if (!TryGetUsuarioId(out var usuarioId)) return Unauthorized();
+
+        var result = await _usuariosService.ExcluirUsuarioAsync(consultorioId, id, usuarioId);
         if (!result)
             return BadRequest(new { erro = "Não é possível excluir a si mesmo ou usuário não encontrado" });
         return NoContent();
@@ -64,7 +64,10 @@ public class UsuariosController : ControllerBase
     [HttpGet("perfil")]
     public async Task<IActionResult> ObterPerfil()
     {
-        var result = await _usuariosService.ObterPerfilAsync(ConsultorioId, UsuarioId);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        if (!TryGetUsuarioId(out var usuarioId)) return Unauthorized();
+
+        var result = await _usuariosService.ObterPerfilAsync(consultorioId, usuarioId);
         if (result is null) return NotFound();
         return Ok(result);
     }
@@ -72,8 +75,11 @@ public class UsuariosController : ControllerBase
     [HttpPut("perfil")]
     public async Task<IActionResult> AtualizarPerfil([FromBody] AtualizarPerfilProprioRequest request)
     {
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        if (!TryGetUsuarioId(out var usuarioId)) return Unauthorized();
+
         var result = await _usuariosService.AtualizarPerfilProprioAsync(
-            ConsultorioId, UsuarioId, request);
+            consultorioId, usuarioId, request);
         if (result is null)
             return BadRequest(new { erro = "Email já em uso por outro usuário" });
         return Ok(result);
@@ -82,8 +88,11 @@ public class UsuariosController : ControllerBase
     [HttpPatch("perfil/senha")]
     public async Task<IActionResult> AlterarSenha([FromBody] AlterarSenhaRequest request)
     {
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        if (!TryGetUsuarioId(out var usuarioId)) return Unauthorized();
+
         var result = await _usuariosService.AlterarSenhaAsync(
-            ConsultorioId, UsuarioId, request);
+            consultorioId, usuarioId, request);
         if (!result)
             return BadRequest(new { erro = "Senha atual incorreta" });
         return Ok(new { mensagem = "Senha alterada com sucesso" });

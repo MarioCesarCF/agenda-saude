@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AgendaSaude.Api.DTOs;
@@ -9,7 +8,7 @@ namespace AgendaSaude.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = "AdminOnly")]
-public class CadastrosController : ControllerBase
+public class CadastrosController : ApiControllerBase
 {
     private readonly CadastroService _cadastroService;
 
@@ -18,40 +17,43 @@ public class CadastrosController : ControllerBase
         _cadastroService = cadastroService;
     }
 
-    private Guid ConsultorioId => Guid.Parse(User.FindFirstValue("ConsultorioId")!);
-
     [HttpPost("profissionais")]
     public async Task<IActionResult> CriarProfissional([FromBody] ProfissionalRequest request)
     {
-        var result = await _cadastroService.CriarProfissionalAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.CriarProfissionalAsync(consultorioId, request);
         return Ok(result);
     }
 
     [HttpGet("profissionais")]
     public async Task<IActionResult> ListarProfissionais()
     {
-        var result = await _cadastroService.ListarProfissionaisAsync(ConsultorioId);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.ListarProfissionaisAsync(consultorioId);
         return Ok(result);
     }
 
     [HttpPost("servicos")]
     public async Task<IActionResult> CriarServico([FromBody] ServicoRequest request)
     {
-        var result = await _cadastroService.CriarServicoAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.CriarServicoAsync(consultorioId, request);
         return Ok(result);
     }
 
     [HttpGet("servicos")]
     public async Task<IActionResult> ListarServicos()
     {
-        var result = await _cadastroService.ListarServicosAsync(ConsultorioId);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.ListarServicosAsync(consultorioId);
         return Ok(result);
     }
 
     [HttpPut("profissionais/{id:guid}")]
     public async Task<IActionResult> AtualizarProfissional(Guid id, [FromBody] ProfissionalRequest request)
     {
-        var result = await _cadastroService.AtualizarProfissionalAsync(ConsultorioId, id, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.AtualizarProfissionalAsync(consultorioId, id, request);
         if (result is null) return NotFound();
         return Ok(result);
     }
@@ -59,7 +61,8 @@ public class CadastrosController : ControllerBase
     [HttpDelete("profissionais/{id:guid}")]
     public async Task<IActionResult> ExcluirProfissional(Guid id)
     {
-        var result = await _cadastroService.ExcluirProfissionalAsync(ConsultorioId, id);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.ExcluirProfissionalAsync(consultorioId, id);
         if (!result) return NotFound();
         return NoContent();
     }
@@ -67,7 +70,8 @@ public class CadastrosController : ControllerBase
     [HttpPut("servicos/{id:guid}")]
     public async Task<IActionResult> AtualizarServico(Guid id, [FromBody] ServicoRequest request)
     {
-        var result = await _cadastroService.AtualizarServicoAsync(ConsultorioId, id, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.AtualizarServicoAsync(consultorioId, id, request);
         if (result is null) return NotFound();
         return Ok(result);
     }
@@ -75,7 +79,8 @@ public class CadastrosController : ControllerBase
     [HttpDelete("servicos/{id:guid}")]
     public async Task<IActionResult> ExcluirServico(Guid id)
     {
-        var result = await _cadastroService.ExcluirServicoAsync(ConsultorioId, id);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.ExcluirServicoAsync(consultorioId, id);
         if (!result) return NotFound();
         return NoContent();
     }
@@ -83,7 +88,8 @@ public class CadastrosController : ControllerBase
     [HttpPost("pacientes")]
     public async Task<IActionResult> CriarPaciente([FromBody] PacienteCompletoRequest request)
     {
-        var result = await _cadastroService.CriarPacienteCompletoAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.CriarPacienteCompletoAsync(consultorioId, request);
         if (result is null)
             return Conflict(new { erro = "Email já cadastrado" });
         return Ok(result);
@@ -92,7 +98,8 @@ public class CadastrosController : ControllerBase
     [HttpPost("horarios")]
     public async Task<IActionResult> CriarHorario([FromBody] HorarioDisponivelRequest request)
     {
-        var result = await _cadastroService.CriarHorarioAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.CriarHorarioAsync(consultorioId, request);
         if (!result) return BadRequest(new { erro = "Horários inválidos" });
         return Ok();
     }
@@ -100,13 +107,15 @@ public class CadastrosController : ControllerBase
     [HttpGet("horarios")]
     public async Task<IActionResult> ListarHorarios()
     {
-        return Ok(await _cadastroService.ListarHorariosAsync(ConsultorioId));
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        return Ok(await _cadastroService.ListarHorariosAsync(consultorioId));
     }
 
     [HttpDelete("horarios/{id:guid}")]
     public async Task<IActionResult> ExcluirHorario(Guid id)
     {
-        var result = await _cadastroService.ExcluirHorarioAsync(ConsultorioId, id);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.ExcluirHorarioAsync(consultorioId, id);
         if (!result) return NotFound();
         return NoContent();
     }
@@ -114,14 +123,16 @@ public class CadastrosController : ControllerBase
     [HttpPost("bloqueios")]
     public async Task<IActionResult> CriarBloqueio([FromBody] BloqueioAgendaRequest request)
     {
-        var result = await _cadastroService.CriarBloqueioAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.CriarBloqueioAsync(consultorioId, request);
         return Ok(result);
     }
 
     [HttpGet("configuracao")]
     public async Task<IActionResult> ObterConfiguracao()
     {
-        var result = await _cadastroService.ObterConfiguracaoAsync(ConsultorioId);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.ObterConfiguracaoAsync(consultorioId);
         if (result is null) return NotFound();
         return Ok(result);
     }
@@ -129,21 +140,24 @@ public class CadastrosController : ControllerBase
     [HttpPut("configuracao")]
     public async Task<IActionResult> AtualizarConfiguracao([FromBody] ConfiguracaoUpdateRequest request)
     {
-        var result = await _cadastroService.AtualizarConfiguracaoAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.AtualizarConfiguracaoAsync(consultorioId, request);
         if (!result) return NotFound();
-        return Ok(await _cadastroService.ObterConfiguracaoAsync(ConsultorioId));
+        return Ok(await _cadastroService.ObterConfiguracaoAsync(consultorioId));
     }
 
     [HttpGet("vinculos")]
     public async Task<IActionResult> ListarVinculos()
     {
-        return Ok(await _cadastroService.ListarVinculosAsync(ConsultorioId));
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        return Ok(await _cadastroService.ListarVinculosAsync(consultorioId));
     }
 
     [HttpPost("vinculos")]
     public async Task<IActionResult> VincularServico([FromBody] VincularServicoRequest request)
     {
-        var result = await _cadastroService.VincularServicoAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.VincularServicoAsync(consultorioId, request);
         if (!result) return Conflict(new { erro = "Vínculo já existe ou dados inválidos" });
         return Ok();
     }
@@ -151,7 +165,8 @@ public class CadastrosController : ControllerBase
     [HttpDelete("vinculos")]
     public async Task<IActionResult> DesvincularServico([FromBody] VincularServicoRequest request)
     {
-        var result = await _cadastroService.DesvincularServicoAsync(ConsultorioId, request);
+        if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
+        var result = await _cadastroService.DesvincularServicoAsync(consultorioId, request);
         if (!result) return NotFound();
         return NoContent();
     }
