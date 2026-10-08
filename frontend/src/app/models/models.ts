@@ -160,3 +160,10 @@ export interface AlterarSenhaRequest {
   senhaAtual: string;
   novaSenha: string;
 }
+
+export interface GoogleLoginResponse {
+  id: string;
+  nome: string;
+  email: string | null;
+  telefoneCelular: string | null;
+}

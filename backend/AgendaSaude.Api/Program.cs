@@ -149,6 +149,11 @@ builder.Services.AddScoped<UsuariosService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<ResetSenhaService>();
 
+builder.Services.AddSingleton<IGoogleTokenValidator>(sp =>
+    new GoogleTokenValidator(
+        builder.Configuration["Google:ClientId"] ?? string.Empty,
+        sp.GetRequiredService<ILogger<GoogleTokenValidator>>()));
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {

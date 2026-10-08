@@ -63,6 +63,8 @@ public class AppDbContext : DbContext
                   .WithMany(c => c.Pacientes)
                   .HasForeignKey(p => p.ConsultorioId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(p => new { p.Email, p.ConsultorioId });
+            entity.HasIndex(p => new { p.GoogleId, p.ConsultorioId });
         });
 
         modelBuilder.Entity<Agendamento>(entity =>

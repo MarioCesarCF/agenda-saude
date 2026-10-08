@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../services/api.service';
+import { AppConfig } from '../config/app.config';
 import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse } from '../models/models';
 
 @Component({
@@ -273,7 +274,7 @@ import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse }
         @if (horarioSelecionado) {
         <div class="flex justify-end mt-3 pt-3 border-t"
           [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'">
-          <button (click)="passoAtual = 3"
+          <button (click)="entrarStep3()"
             class="px-4 py-2 text-white rounded-lg text-sm font-medium transition"
             [style.background-color]="config?.corPrimaria ?? '#059669'"
             (mouseenter)="$any($event.target).style.filter='brightness(0.85)'"
@@ -321,6 +322,44 @@ import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse }
             <span class="font-medium">{{ horarioSelecionado }}</span>
           </div>
         </div>
+
+        @if (appConfig.googleClientId && !sucesso) {
+        <div class="mb-4 p-4 rounded-lg border"
+          [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'"
+          [style.background-color]="config?.tema === 'dark' ? '#0f172a' : '#f9fafb'">
+          @if (googleCarregando) {
+          <p class="text-sm text-center" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+            Conectando com Google...
+          </p>
+          } @else if (googleConectado) {
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2 text-sm min-w-0">
+              <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                [style.background-color]="(config?.corPrimaria ?? '#059669') + '1a'">
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                  [style.color]="config?.corPrimaria ?? '#059669'">
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+              </span>
+              <div class="min-w-0">
+                <div class="font-medium truncate" [style.color]="config?.tema === 'dark' ? '#f1f5f9' : '#1f2937'">
+                  Conectado como {{ pacNome }}
+                </div>
+                <div class="text-xs truncate" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">{{ pacEmail }}</div>
+              </div>
+            </div>
+            <button type="button" (click)="desconectarGoogle()"
+              class="text-xs underline shrink-0"
+              [style.color]="config?.corDestaque ?? '#f59e0b'">sair</button>
+          </div>
+          } @else {
+          <p class="text-xs font-medium mb-2" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+            Entre com Google para preencher seus dados automaticamente
+          </p>
+          <div id="google-btn"></div>
+          }
+        </div>
+        }
 
         <form (ngSubmit)="confirmar()" class="space-y-3">
           <div>
@@ -461,6 +500,11 @@ export class AgendamentoComponent implements OnInit {
   focusedInput = '';
   submitted = false;
 
+  readonly appConfig = AppConfig;
+  googleConectado = false;
+  googleCarregando = false;
+  private googleScriptLoading = false;
+
   get nomeInvalido(): boolean {
     return this.submitted && !this.pacNome.trim();
   }
@@ -587,7 +631,10 @@ export class AgendamentoComponent implements OnInit {
   }
 
   irPara(passo: number) {
-    if (passo <= this.passoAtual) this.passoAtual = passo;
+    if (passo <= this.passoAtual) {
+      this.passoAtual = passo;
+      if (passo === 3) setTimeout(() => this.renderizarBotaoGoogle(), 0);
+    }
   }
 
   get podeAvancarStep1(): boolean {
@@ -729,6 +776,91 @@ export class AgendamentoComponent implements OnInit {
     return this.dataSelecionada.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  private carregarScriptGoogle(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const win = window as any;
+      if (win.google?.accounts?.id) {
+        resolve();
+        return;
+      }
+      if (this.googleScriptLoading) {
+        const check = setInterval(() => {
+          if (win.google?.accounts?.id) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 100);
+        setTimeout(() => clearInterval(check), 10000);
+        return;
+      }
+      this.googleScriptLoading = true;
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Falha ao carregar o Google'));
+      document.head.appendChild(script);
+    });
+  }
+
+  entrarStep3() {
+    this.passoAtual = 3;
+    setTimeout(() => this.renderizarBotaoGoogle(), 0);
+  }
+
+  private renderizarBotaoGoogle() {
+    if (!AppConfig.googleClientId || this.googleConectado) return;
+    const el = document.getElementById('google-btn');
+    if (!el) return;
+
+    this.carregarScriptGoogle().then(() => {
+      const win = window as any;
+      win.google.accounts.id.initialize({
+        client_id: AppConfig.googleClientId,
+        callback: (resp: any) => this.handleCredentialResponse(resp),
+      });
+      el.replaceChildren();
+      win.google.accounts.id.renderButton(el, {
+        theme: 'outline',
+        size: 'large',
+        shape: 'rectangular',
+        width: 320,
+      });
+    }).catch(() => {});
+  }
+
+  private handleCredentialResponse(response: any) {
+    const idToken = response?.credential as string | undefined;
+    if (!idToken) return;
+
+    this.googleCarregando = true;
+    this.erro = '';
+    this.cdr.detectChanges();
+
+    this.api.loginGoogle(this.consultorioId, idToken).subscribe({
+      next: (res) => {
+        this.googleCarregando = false;
+        this.googleConectado = true;
+        this.pacNome = res.nome;
+        this.pacEmail = res.email ?? '';
+        if (res.telefoneCelular) this.pacCelular = res.telefoneCelular;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.googleCarregando = false;
+        this.erro = 'Falha ao entrar com Google. Tente novamente.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  desconectarGoogle() {
+    this.googleConectado = false;
+    (window as any).google?.accounts?.id?.disableAutoSelect?.();
+    setTimeout(() => this.renderizarBotaoGoogle(), 0);
+  }
+
   confirmar() {
     this.submitted = true;
     if (!this.horarioSelecionado) return;
@@ -776,6 +908,8 @@ export class AgendamentoComponent implements OnInit {
     this.erro = '';
     this.sucesso = '';
     this.submitted = false;
+    this.googleConectado = false;
+    this.googleCarregando = false;
     this.dataSelecionada = null;
     this.horariosData = [];
     this.carregandoHorarios = false;

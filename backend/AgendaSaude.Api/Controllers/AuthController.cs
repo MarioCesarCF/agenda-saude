@@ -70,6 +70,17 @@ public class AuthController : ControllerBase
         return Ok(new { mensagem = "Senha redefinida com sucesso" });
     }
 
+    [HttpPost("google/{consultorioId:guid}")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> LoginGoogle(Guid consultorioId, [FromBody] GoogleLoginRequest request)
+    {
+        var result = await _authService.LoginGoogleAsync(consultorioId, request.IdToken);
+        if (result is null)
+            return Unauthorized(new { erro = "Falha na autenticação com Google" });
+
+        return Ok(result);
+    }
+
     [Authorize]
     [HttpPost("logout")]
     public IActionResult Logout()

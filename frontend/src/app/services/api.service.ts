@@ -11,6 +11,7 @@ import type {
   ProfissionalServico,
   HorarioDisponivel,
   Usuario,
+  GoogleLoginResponse,
 } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
@@ -140,6 +141,13 @@ export class ApiService {
     return this.http.post<Agendamento>(
       `${this.baseUrl}/publico/${consultorioId}/agendar`,
       data,
+    );
+  }
+
+  loginGoogle(consultorioId: string, idToken: string) {
+    return this.http.post<GoogleLoginResponse>(
+      `${this.baseUrl}/auth/google/${consultorioId}`,
+      { idToken },
     );
   }
 

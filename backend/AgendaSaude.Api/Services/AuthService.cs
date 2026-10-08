@@ -9,11 +9,13 @@ public class AuthService
 {
     private readonly AppDbContext _context;
     private readonly TokenService _tokenService;
+    private readonly IGoogleTokenValidator _googleTokenValidator;
 
-    public AuthService(AppDbContext context, TokenService tokenService)
+    public AuthService(AppDbContext context, TokenService tokenService, IGoogleTokenValidator googleTokenValidator)
     {
         _context = context;
         _tokenService = tokenService;
+        _googleTokenValidator = googleTokenValidator;
     }
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
@@ -96,5 +98,43 @@ public class AuthService
         await _context.SaveChangesAsync();
 
         return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email);
+    }
+
+    public async Task<GoogleLoginResponse?> LoginGoogleAsync(Guid consultorioId, string idToken)
+    {
+        var info = await _googleTokenValidator.ValidarIdTokenAsync(idToken);
+        if (info is null) return null;
+
+        var paciente = await _context.Pacientes
+            .FirstOrDefaultAsync(p => p.ConsultorioId == consultorioId && p.GoogleId == info.GoogleId);
+
+        if (paciente is null)
+        {
+            paciente = await _context.Pacientes
+                .FirstOrDefaultAsync(p => p.ConsultorioId == consultorioId && p.Email == info.Email);
+
+            if (paciente is not null)
+            {
+                paciente.GoogleId = info.GoogleId;
+            }
+            else
+            {
+                paciente = new Paciente
+                {
+                    ConsultorioId = consultorioId,
+                    Nome = info.Nome,
+                    Email = info.Email,
+                    TelefoneCelular = string.Empty,
+                    GoogleId = info.GoogleId
+                };
+                _context.Pacientes.Add(paciente);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        return new GoogleLoginResponse(
+            paciente.Id, paciente.Nome, paciente.Email,
+            string.IsNullOrWhiteSpace(paciente.TelefoneCelular) ? null : paciente.TelefoneCelular);
     }
 }

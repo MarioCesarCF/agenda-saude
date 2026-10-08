@@ -102,3 +102,9 @@ public record ResetarSenhaRequest(
     [Required][MaxLength(20)] string Token,
     [Required][MinLength(6)][MaxLength(100)] string NovaSenha
 );
+
+public record GoogleLoginRequest(
+    [Required][MaxLength(4096)] string IdToken
+);
+
+public record GoogleLoginResponse(Guid Id, string Nome, string? Email, string? TelefoneCelular);

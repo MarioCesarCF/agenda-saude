@@ -11,13 +11,14 @@ public class AuthServiceTests : IDisposable
     private readonly AppDbContext _context;
     private readonly AuthService _authService;
     private readonly TokenService _tokenService;
+    private readonly FakeGoogleValidator _googleValidator = new();
     private const string JwtKey = "test-key-for-auth-service-tests-32-chars-min";
 
     public AuthServiceTests()
     {
         _context = TestHelper.CreateInMemoryContext();
         _tokenService = new TokenService(JwtKey, "Test", "Test");
-        _authService = new AuthService(_context, _tokenService);
+        _authService = new AuthService(_context, _tokenService, _googleValidator);
     }
 
     public void Dispose() => _context.Dispose();
@@ -199,5 +200,126 @@ public class AuthServiceTests : IDisposable
         var result = await _authService.CadastrarPacienteAsync(c2.Id, request2);
 
         Assert.NotNull(result);
+    }
+
+    // ── LoginGoogleAsync ──
+
+    [Fact]
+    public async Task LoginGoogle_NovoPaciente_DeveCriarERetornarDados()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+        _googleValidator.Resultado = new GoogleUserInfo("google-123", "João Silva", "joao@gmail.com");
+
+        var result = await _authService.LoginGoogleAsync(consultorio.Id, "id-token");
+
+        Assert.NotNull(result);
+        Assert.Equal("João Silva", result!.Nome);
+        Assert.Equal("joao@gmail.com", result.Email);
+        Assert.Null(result.TelefoneCelular);
+        Assert.Equal(1, await _context.Pacientes.CountAsync(p => p.ConsultorioId == consultorio.Id));
+
+        var paciente = await _context.Pacientes.FirstAsync(p => p.ConsultorioId == consultorio.Id);
+        Assert.Equal("google-123", paciente.GoogleId);
+    }
+
+    [Fact]
+    public async Task LoginGoogle_PacienteExistentePorGoogleId_DeveReutilizar()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+        var paciente = new Paciente
+        {
+            ConsultorioId = consultorio.Id,
+            Nome = "João Silva",
+            Email = "joao@gmail.com",
+            TelefoneCelular = "11988888888",
+            GoogleId = "google-123"
+        };
+        _context.Pacientes.Add(paciente);
+        await _context.SaveChangesAsync();
+        _googleValidator.Resultado = new GoogleUserInfo("google-123", "João Silva", "joao@gmail.com");
+
+        var result = await _authService.LoginGoogleAsync(consultorio.Id, "id-token");
+
+        Assert.NotNull(result);
+        Assert.Equal(paciente.Id, result!.Id);
+        Assert.Equal("11988888888", result.TelefoneCelular);
+        Assert.Equal(1, await _context.Pacientes.CountAsync());
+    }
+
+    [Fact]
+    public async Task LoginGoogle_EmailJaCadastrado_DeveVincularGoogleId()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+        var paciente = new Paciente
+        {
+            ConsultorioId = consultorio.Id,
+            Nome = "João",
+            Email = "joao@gmail.com",
+            TelefoneCelular = "11988888888"
+        };
+        _context.Pacientes.Add(paciente);
+        await _context.SaveChangesAsync();
+        _googleValidator.Resultado = new GoogleUserInfo("google-abc", "João Silva", "joao@gmail.com");
+
+        var result = await _authService.LoginGoogleAsync(consultorio.Id, "id-token");
+
+        Assert.NotNull(result);
+        Assert.Equal(paciente.Id, result!.Id);
+        var atualizado = await _context.Pacientes.FirstAsync(p => p.Id == paciente.Id);
+        Assert.Equal("google-abc", atualizado.GoogleId);
+        Assert.Equal(1, await _context.Pacientes.CountAsync());
+    }
+
+    [Fact]
+    public async Task LoginGoogle_TokenInvalido_DeveRetornarNull()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+        _googleValidator.Resultado = null;
+
+        var result = await _authService.LoginGoogleAsync(consultorio.Id, "token-invalido");
+
+        Assert.Null(result);
+        Assert.Equal(0, await _context.Pacientes.CountAsync());
+    }
+
+    [Fact]
+    public async Task LoginGoogle_EmailDeOutroConsultorio_DeveCriarNovoPaciente()
+    {
+        var c1 = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        var c2 = new Consultorio { NomeFantasia = "C2", Email = "c2@test.com", TelefoneCelular = "22999999999" };
+        _context.Consultorios.AddRange(c1, c2);
+        await _context.SaveChangesAsync();
+        var pacienteOutro = new Paciente
+        {
+            ConsultorioId = c2.Id,
+            Nome = "João",
+            Email = "joao@gmail.com",
+            TelefoneCelular = "11988888888"
+        };
+        _context.Pacientes.Add(pacienteOutro);
+        await _context.SaveChangesAsync();
+        _googleValidator.Resultado = new GoogleUserInfo("google-123", "João Silva", "joao@gmail.com");
+
+        var result = await _authService.LoginGoogleAsync(c1.Id, "id-token");
+
+        Assert.NotNull(result);
+        Assert.NotEqual(pacienteOutro.Id, result!.Id);
+        Assert.Equal(2, await _context.Pacientes.CountAsync());
+    }
+
+    private sealed class FakeGoogleValidator : IGoogleTokenValidator
+    {
+        public GoogleUserInfo? Resultado { get; set; }
+
+        public Task<GoogleUserInfo?> ValidarIdTokenAsync(string idToken)
+            => Task.FromResult(Resultado);
     }
 }
