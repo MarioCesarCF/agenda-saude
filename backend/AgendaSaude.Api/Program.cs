@@ -74,6 +74,8 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminOnly", policy =>
         policy.RequireClaim(ClaimTypes.Role, "Admin"));
+    options.AddPolicy("PacienteOnly", policy =>
+        policy.RequireClaim(ClaimTypes.Role, "Paciente"));
 });
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

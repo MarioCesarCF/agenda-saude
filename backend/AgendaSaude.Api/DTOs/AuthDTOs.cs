@@ -89,7 +89,22 @@ public record ConfiguracaoUpdateRequest(
 public record CadastroPacienteRequest(
     [Required][MaxLength(200)] string Nome,
     [EmailAddress] string? Email,
-    [Required][MaxLength(20)] string TelefoneCelular
+    [Required][MaxLength(20)] string TelefoneCelular,
+    [MinLength(6)][MaxLength(100)] string? Senha
+);
+
+public record LoginPacienteRequest(
+    [Required][EmailAddress][MaxLength(100)] string Email,
+    [Required][MinLength(6)] string Senha
+);
+
+public record PacienteLoginResponse(
+    string Token,
+    string Id,
+    string Nome,
+    string? Email,
+    string? TelefoneCelular,
+    Guid ConsultorioId
 );
 
 public record CadastroPacienteResponse(Guid Id, string Nome, string? Email);

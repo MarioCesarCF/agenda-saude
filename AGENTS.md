@@ -43,6 +43,10 @@
 | `POST /api/auth/resetar-senha` | No | Reset password with 6-digit code (body `{ token, novaSenha }`) |
 | `POST /api/auth/google/{consultorioId:guid}` | No | Google Sign-In via Neon Auth: validates the Neon session token (`{ token }`) in `neon_auth.session`/`neon_auth.user`, creates/links patient by `GoogleId`/email, returns `{ id, nome, email, telefoneCelular }` |
 | `POST /api/auth/cadastro-consultorio` | No | Register clinic (includes optional theme fields) |
+| `POST /api/auth/cadastro-paciente/{consultorioId:guid}` | No | Register patient (body incl. optional `senha`); if email already exists **sem** senha, sets the password on the first registration (rate limited) |
+| `POST /api/auth/login-paciente/{consultorioId:guid}` | No | Patient login email+senha (BCrypt, `Paciente.SenhaHash`); returns JWT with role claim `Paciente` + `{ token, id, nome, email, telefoneCelular, consultorioId }` (rate limited) |
+| `GET /api/pacientes/agendamentos` | JWT + PacienteOnly | Patient's own appointments, scoped by `PacienteId` + `ConsultorioId` claims, ordered desc |
+| `PATCH /api/pacientes/agendamentos/{id:guid}/cancelar` | JWT + PacienteOnly | Cancel own appointment (sets status=Cancelado, logs HistoricoAcao `CancelarAgendamentoPaciente`, no UsuarioId) |
 | `POST /api/usuarios` | JWT + AdminOnly | Create user (Atendente/Profissional) |
 | `PUT /api/usuarios/{id}` | JWT + AdminOnly | Update user |
 | `DELETE /api/usuarios/{id}` | JWT + AdminOnly | Soft-delete user (sets Ativo=false, logs HistoricoAcao) |
@@ -79,6 +83,8 @@
 | `/admin/dashboard/usuarios` | Admin | User management CRUD — AdminGuard |
 | `/admin/dashboard/perfil` | Admin | Edit own name/email + change password |
 | `/p/:consultorioId` | Publico | Patient booking wizard (4 steps) |
+| `/p/:consultorioId/entrar` | Publico | Patient portal login/register — tabs Entrar + Criar conta (public, no guard) |
+| `/p/:consultorioId/minha-agenda` | Publico | Patient's own appointments (próximas + histórico, cancelar) — `PacienteGuard` (redirects to `entrar`) |
 
 ## Key gotchas
 - App module file is `app-module.ts`, **not** `app.module.ts`
@@ -86,19 +92,18 @@
 - Tailwind v4: `@import "tailwindcss"` in CSS (no `@tailwind` directives); PostCSS via `.postcssrc.json`
 - Components are module‑based (`standalone: false`) — `declarations` in `NgModule`
 - Guards are **functional** (`CanActivateFn`) — not class-based. Angular 21 will throw `Class constructor XGuard cannot be invoked without 'new'` if you use class-based guards with `canActivate: [GuardFn]` syntax
-- Auth state in localStorage key `auth` — `AuthService` reads/writes it
-- `AuthService` exposes signals: `tema()`, `corPrimaria()`, `corSecundaria()`, `corDestaque()`, `icone()`, `nomeFantasia()`
 - Theme/colors stored per-clinic in `Consultorio` table (columns: `Tema`, `CorPrimaria`, `CorSecundaria`, `CorDestaque`, `Icone`)
 - Admin layouts use dynamic colors via `[style.*]` bindings (NOT Tailwind color classes) because colors are runtime-configurable
 - Dark mode card backgrounds: **never** use `bg-white` + `[class.bg-slate-800]` — Tailwind v4 CSS specificity causes `bg-white` to override `bg-slate-800`. Always use `[style.background-color]` inline bindings for reliable dark mode rendering
 - Patient portal uses `/p/{consultorioId}` with a GUID — no auth required
-- `authInterceptor` is a functional interceptor (not class‑based)
+- Auth state (admin) in localStorage key `auth` — `AuthService` reads/writes it; patient portal auth in key `auth-paciente` — `PacienteAuthService` reads/writes it (signals: `token()`, `nome()`, `email()`, `telefoneCelular()`, `consultorioId()`)
+- `authInterceptor` is a functional interceptor (not class‑based). It attaches the **admin** token except for `/api/pacientes/**`, which uses the **patient** token (`PacienteAuthService`) — the two tokens never mix
 - Connection string in `appsettings.Development.json` (gitignored); fallback in `appsettings.json`
 - Default JWT key in `appsettings.json` — **must** override in production
 - Google Sign-In (pacientes) via **Neon Auth** (mesma abordagem do Cardapio Online). Front usa `@neondatabase/neon-js` (`createAuthClient(AppConfig.neonAuthUrl)`), `signIn.social({ provider: 'google', callbackURL })` com redirect para `/p/{id}?via=google`; o draft do wizard é salvo em sessionStorage antes do redirect e restaurado no retorno. Backend valida o token de sessão **opaco** em `neon_auth.session`/`neon_auth."user"` (SQL raw via `NeonSessionValidator`, `INeonSessionValidator`) — não há `GoogleTokenValidator`/jwks. Sessões e OAuth (client id/secret) ficam no Neon Console. `AppConfig.neonAuthUrl` aponta para `https://<projeto>.neonauth.sa-east-1.aws.neon.tech/neondb/auth` (também em `appsettings.json` como `NeonAuth:Url`)
 - Portuguese locale: `registerLocaleData(localePt, 'pt-BR')` + `{ provide: LOCALE_ID, useValue: 'pt-BR' }` in `app-module.ts`. All `date` pipe formats render in Portuguese. `toLocaleDateString('pt-BR')` also used in some places
-- Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 44 tests)
-- Frontend tests: Vitest v4 + jsdom (21 tests across 4 files: `auth.service.spec.ts`, `loading.service.spec.ts`, `auth.interceptor.spec.ts`, `loading.interceptor.spec.ts`)
+- Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 55 tests)
+- Frontend tests: Vitest v4 + jsdom (30 tests across 5 files: `auth.service.spec.ts`, `paciente-auth.service.spec.ts`, `loading.service.spec.ts`, `auth.interceptor.spec.ts`, `loading.interceptor.spec.ts`)
 
 ## Patient booking wizard (AgendamentoComponent)
 **Steps** (4, with progress bar):

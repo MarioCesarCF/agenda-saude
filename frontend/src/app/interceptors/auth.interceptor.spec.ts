@@ -4,12 +4,14 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { PacienteAuthService } from '../services/paciente-auth.service';
 import { authInterceptor } from './auth.interceptor';
 
 describe('authInterceptor', () => {
   let httpMock: HttpTestingController;
   let httpClient: HttpClient;
   let authService: AuthService;
+  let pacienteAuthService: PacienteAuthService;
 
   beforeEach(() => {
     localStorage.clear();
@@ -25,6 +27,7 @@ describe('authInterceptor', () => {
     httpMock = TestBed.inject(HttpTestingController);
     httpClient = TestBed.inject(HttpClient);
     authService = TestBed.inject(AuthService);
+    pacienteAuthService = TestBed.inject(PacienteAuthService);
   });
 
   afterEach(() => {
@@ -61,5 +64,22 @@ describe('authInterceptor', () => {
     const req = httpMock.expectOne('/api/test');
     expect(req.request.headers.has('Authorization')).toBe(false);
     req.flush({});
+  });
+
+  it('should use patient token for /api/pacientes requests', () => {
+    pacienteAuthService['setAuth']({
+      token: 'paciente-jwt-token',
+      id: 'p1',
+      nome: 'João',
+      email: 'joao@test.com',
+      telefoneCelular: '11988888888',
+      consultorioId: 'c1',
+    });
+
+    httpClient.get('/api/pacientes/agendamentos').subscribe();
+
+    const req = httpMock.expectOne('/api/pacientes/agendamentos');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer paciente-jwt-token');
+    req.flush([]);
   });
 });

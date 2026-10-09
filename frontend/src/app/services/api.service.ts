@@ -204,4 +204,12 @@ export class ApiService {
   alterarSenha(data: { senhaAtual: string; novaSenha: string }) {
     return this.http.patch<{ mensagem: string }>(`${this.baseUrl}/usuarios/perfil/senha`, data);
   }
+
+  getMeusAgendamentos() {
+    return this.http.get<Agendamento[]>(`${this.baseUrl}/pacientes/agendamentos`);
+  }
+
+  cancelarMeuAgendamento(id: string) {
+    return this.http.patch(`${this.baseUrl}/pacientes/agendamentos/${id}/cancelar`, {});
+  }
 }

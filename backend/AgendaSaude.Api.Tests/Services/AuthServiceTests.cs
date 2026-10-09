@@ -156,7 +156,7 @@ public class AuthServiceTests : IDisposable
         _context.Consultorios.Add(consultorio);
         await _context.SaveChangesAsync();
 
-        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888");
+        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888", null);
         var result = await _authService.CadastrarPacienteAsync(consultorio.Id, request);
 
         Assert.NotNull(result);
@@ -176,10 +176,10 @@ public class AuthServiceTests : IDisposable
         _context.Consultorios.Add(consultorio);
         await _context.SaveChangesAsync();
 
-        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888");
+        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888", null);
         await _authService.CadastrarPacienteAsync(consultorio.Id, request);
 
-        var request2 = new CadastroPacienteRequest("João Silva", "joao@test.com", "11977777777");
+        var request2 = new CadastroPacienteRequest("João Silva", "joao@test.com", "11977777777", null);
         var result = await _authService.CadastrarPacienteAsync(consultorio.Id, request2);
 
         Assert.Null(result);
@@ -193,13 +193,156 @@ public class AuthServiceTests : IDisposable
         _context.Consultorios.AddRange(c1, c2);
         await _context.SaveChangesAsync();
 
-        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888");
+        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888", null);
         await _authService.CadastrarPacienteAsync(c1.Id, request);
 
-        var request2 = new CadastroPacienteRequest("João", "joao@test.com", "11988888888");
+        var request2 = new CadastroPacienteRequest("João", "joao@test.com", "11988888888", null);
         var result = await _authService.CadastrarPacienteAsync(c2.Id, request2);
 
         Assert.NotNull(result);
+    }
+
+    // ── LoginPacienteAsync / cadastro com senha ──
+
+    private async Task<Guid> CriarPacienteComSenhaAsync(string email, string senha)
+    {
+        var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+
+        var paciente = new Paciente
+        {
+            ConsultorioId = consultorio.Id,
+            Nome = "João Paciente",
+            Email = email,
+            TelefoneCelular = "11988888888",
+            SenhaHash = BCrypt.Net.BCrypt.HashPassword(senha)
+        };
+        _context.Pacientes.Add(paciente);
+        await _context.SaveChangesAsync();
+        return consultorio.Id;
+    }
+
+    [Fact]
+    public async Task CadastrarPaciente_ComSenha_DeveCriarComSenhaHash()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "Clínica", Email = "c@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+
+        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888", "senha123");
+        var result = await _authService.CadastrarPacienteAsync(consultorio.Id, request);
+
+        Assert.NotNull(result);
+        var paciente = await _context.Pacientes.FirstAsync(p => p.Id == result!.Id);
+        Assert.True(BCrypt.Net.BCrypt.Verify("senha123", paciente.SenhaHash));
+    }
+
+    [Fact]
+    public async Task CadastrarPaciente_PacienteSemSenha_DeveDefinirSenhaNoPrimeiroCadastro()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "Clínica", Email = "c@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+        _context.Pacientes.Add(new Paciente
+        {
+            ConsultorioId = consultorio.Id,
+            Nome = "João",
+            Email = "joao@test.com",
+            TelefoneCelular = "11988888888"
+        });
+        await _context.SaveChangesAsync();
+
+        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888", "minhasenha");
+        var result = await _authService.CadastrarPacienteAsync(consultorio.Id, request);
+
+        Assert.NotNull(result);
+        var paciente = await _context.Pacientes.FirstAsync(p => p.Email == "joao@test.com");
+        Assert.True(BCrypt.Net.BCrypt.Verify("minhasenha", paciente.SenhaHash));
+    }
+
+    [Fact]
+    public async Task LoginPaciente_CredenciaisValidas_DeveRetornarTokenEDados()
+    {
+        var consultorioId = await CriarPacienteComSenhaAsync("paciente@test.com", "senha123");
+
+        var request = new LoginPacienteRequest("paciente@test.com", "senha123");
+        var result = await _authService.LoginPacienteAsync(consultorioId, request);
+
+        Assert.NotNull(result);
+        Assert.False(string.IsNullOrWhiteSpace(result!.Token));
+        Assert.Equal("João Paciente", result.Nome);
+        Assert.Equal("paciente@test.com", result.Email);
+        Assert.Equal("11988888888", result.TelefoneCelular);
+        Assert.Equal(consultorioId, result.ConsultorioId);
+    }
+
+    [Fact]
+    public async Task LoginPaciente_SenhaErrada_DeveRetornarNull()
+    {
+        var consultorioId = await CriarPacienteComSenhaAsync("paciente@test.com", "senha123");
+
+        var request = new LoginPacienteRequest("paciente@test.com", "senhaerrada");
+        var result = await _authService.LoginPacienteAsync(consultorioId, request);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task LoginPaciente_PacienteSemSenhaCadastrada_DeveRetornarNull()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+        _context.Pacientes.Add(new Paciente
+        {
+            ConsultorioId = consultorio.Id,
+            Nome = "João",
+            Email = "paciente@test.com",
+            TelefoneCelular = "11988888888"
+        });
+        await _context.SaveChangesAsync();
+
+        var request = new LoginPacienteRequest("paciente@test.com", "senha123");
+        var result = await _authService.LoginPacienteAsync(consultorio.Id, request);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task LoginPaciente_EmailInexistente_DeveRetornarNull()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+
+        var request = new LoginPacienteRequest("naoexiste@test.com", "senha123");
+        var result = await _authService.LoginPacienteAsync(consultorio.Id, request);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task LoginPaciente_PacienteInativo_DeveRetornarNull()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+        _context.Pacientes.Add(new Paciente
+        {
+            ConsultorioId = consultorio.Id,
+            Nome = "João",
+            Email = "paciente@test.com",
+            TelefoneCelular = "11988888888",
+            SenhaHash = BCrypt.Net.BCrypt.HashPassword("senha123"),
+            Ativo = false
+        });
+        await _context.SaveChangesAsync();
+
+        var request = new LoginPacienteRequest("paciente@test.com", "senha123");
+        var result = await _authService.LoginPacienteAsync(consultorio.Id, request);
+
+        Assert.Null(result);
     }
 
     // ── LoginGoogleAsync ──
