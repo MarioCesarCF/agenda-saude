@@ -212,4 +212,11 @@ export class ApiService {
   cancelarMeuAgendamento(id: string) {
     return this.http.patch(`${this.baseUrl}/pacientes/agendamentos/${id}/cancelar`, {});
   }
+
+  reagendarMeuAgendamento(id: string, novaDataHoraInicio: string) {
+    return this.http.patch<Agendamento>(
+      `${this.baseUrl}/pacientes/agendamentos/${id}/reagendar`,
+      { novaDataHoraInicio },
+    );
+  }
 }

@@ -284,4 +284,112 @@ public class AgendamentoServiceTests : IDisposable
         var atualizado = await _context.Agendamentos.FindAsync(agendamento.Id);
         Assert.Equal(StatusAgendamento.Agendado, atualizado!.Status);
     }
+
+    // ── ReagendarAgendamentoDoPacienteAsync ──
+
+    private async Task<Agendamento> CriarAgendamentoComProfissionalAsync(
+        Guid consultorioId, Guid pacienteId, Guid servicoId, Guid profissionalId, DateTime inicio)
+    {
+        var a = new Agendamento
+        {
+            ConsultorioId = consultorioId,
+            ProfissionalId = profissionalId,
+            ServicoId = servicoId,
+            PacienteId = pacienteId,
+            DataHoraInicio = inicio,
+            DataHoraFim = inicio.AddMinutes(30)
+        };
+        _context.Agendamentos.Add(a);
+        await _context.SaveChangesAsync();
+        return a;
+    }
+
+    [Fact]
+    public async Task ReagendarAgendamentoDoPaciente_DeveReagendarERegistrarHistorico()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        var servico = await CriarServicoAsync(c.Id);
+        var paciente = await CriarPacienteAsync(c.Id, "João");
+        var agendamento = await CriarAgendamentoDiretoAsync(c.Id, paciente.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+
+        var novaData = DateTime.UtcNow.Date.AddDays(4).AddHours(14);
+        var result = await _service.ReagendarAgendamentoDoPacienteAsync(
+            agendamento.Id, c.Id, paciente.Id, novaData);
+
+        Assert.NotNull(result);
+        Assert.Equal(novaData, result!.DataHoraInicio);
+        Assert.Equal(novaData.AddMinutes(30), result.DataHoraFim);
+
+        var historico = await _context.HistoricoAcoes
+            .FirstAsync(h => h.EntidadeId == agendamento.Id.ToString());
+        Assert.Equal("ReagendarAgendamentoPaciente", historico.Acao);
+        Assert.Null(historico.UsuarioId);
+    }
+
+    [Fact]
+    public async Task ReagendarAgendamentoDoPaciente_DeOutroPaciente_DeveRetornarNull()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        var servico = await CriarServicoAsync(c.Id);
+        var dono = await CriarPacienteAsync(c.Id, "João");
+        var outro = await CriarPacienteAsync(c.Id, "Maria");
+        var agendamento = await CriarAgendamentoDiretoAsync(c.Id, dono.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+
+        var result = await _service.ReagendarAgendamentoDoPacienteAsync(
+            agendamento.Id, c.Id, outro.Id, DateTime.UtcNow.Date.AddDays(3).AddHours(11));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ReagendarAgendamentoDoPaciente_DataNoPassado_DeveRetornarNull()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        var servico = await CriarServicoAsync(c.Id);
+        var paciente = await CriarPacienteAsync(c.Id, "João");
+        var agendamento = await CriarAgendamentoDiretoAsync(c.Id, paciente.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+
+        var result = await _service.ReagendarAgendamentoDoPacienteAsync(
+            agendamento.Id, c.Id, paciente.Id, DateTime.UtcNow.AddDays(-1));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ReagendarAgendamentoDoPaciente_Cancelado_DeveRetornarNull()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        var servico = await CriarServicoAsync(c.Id);
+        var paciente = await CriarPacienteAsync(c.Id, "João");
+        var agendamento = await CriarAgendamentoDiretoAsync(c.Id, paciente.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+        agendamento.Status = StatusAgendamento.Cancelado;
+        await _context.SaveChangesAsync();
+
+        var result = await _service.ReagendarAgendamentoDoPacienteAsync(
+            agendamento.Id, c.Id, paciente.Id, DateTime.UtcNow.Date.AddDays(3).AddHours(11));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ReagendarAgendamentoDoPaciente_ConflitoDeHorario_DeveRetornarNull()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        var prof = await CriarProfissionalAsync(c.Id, "Dr. Silva");
+        var servico = await CriarServicoAsync(c.Id);
+        var paciente = await CriarPacienteAsync(c.Id, "João");
+        var agendamento = await CriarAgendamentoComProfissionalAsync(c.Id, paciente.Id, servico.Id, prof.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+        await CriarAgendamentoComProfissionalAsync(c.Id, paciente.Id, servico.Id, prof.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(11));
+
+        var result = await _service.ReagendarAgendamentoDoPacienteAsync(
+            agendamento.Id, c.Id, paciente.Id, DateTime.UtcNow.Date.AddDays(2).AddHours(11).AddMinutes(15));
+
+        Assert.Null(result);
+    }
 }

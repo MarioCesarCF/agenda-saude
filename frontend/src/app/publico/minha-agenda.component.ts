@@ -2,7 +2,7 @@ import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../services/api.service';
 import { PacienteAuthService } from '../services/paciente-auth.service';
-import type { Agendamento, ConfiguracaoResponse } from '../models/models';
+import type { Agendamento, ConfiguracaoResponse, HorariosDisponiveis } from '../models/models';
 
 const STATUS_LABEL: Record<string, string> = {
   Agendado: 'Agendado',
@@ -96,12 +96,20 @@ const STATUS_LABEL: Record<string, string> = {
                     {{ formatarHora(a.dataHoraInicio) }} – {{ formatarHora(a.dataHoraFim) }}
                   </div>
                 </div>
-                <button (click)="cancelar(a)" [disabled]="cancelandoId === a.id"
-                  class="text-xs px-3 py-1.5 rounded-lg font-medium transition disabled:opacity-50 cursor-pointer"
-                  [style.background-color]="config?.tema === 'dark' ? '#334155' : '#fef2f2'"
-                  [style.color]="'#ef4444'">
-                  {{ cancelandoId === a.id ? 'Cancelando…' : 'Cancelar' }}
-                </button>
+                <div class="flex items-center gap-2">
+                  <button (click)="abrirReagendar(a)"
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium transition cursor-pointer"
+                    [style.background-color]="config?.tema === 'dark' ? '#334155' : '#eff6ff'"
+                    [style.color]="config?.corPrimaria ?? '#059669'">
+                    Reagendar
+                  </button>
+                  <button (click)="cancelar(a)" [disabled]="cancelandoId === a.id"
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium transition disabled:opacity-50 cursor-pointer"
+                    [style.background-color]="config?.tema === 'dark' ? '#334155' : '#fef2f2'"
+                    [style.color]="'#ef4444'">
+                    {{ cancelandoId === a.id ? 'Cancelando…' : 'Cancelar' }}
+                  </button>
+                </div>
               </div>
             </div>
             }
@@ -144,6 +152,78 @@ const STATUS_LABEL: Record<string, string> = {
         </div>
         }
       }
+
+      @if (reagendando) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(0,0,0,0.5)">
+        <div class="rounded-xl shadow-lg border w-full max-w-lg max-h-[90vh] overflow-y-auto p-5"
+          [style.background-color]="config?.tema === 'dark' ? '#1e293b' : '#fff'"
+          [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h3 class="font-bold text-base" [style.color]="config?.tema === 'dark' ? '#f8fafc' : '#111827'">
+                Reagendar {{ reagendando.servicoNome }}
+              </h3>
+              <p class="text-xs mt-0.5" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+                {{ reagendando.profissionalNome }} · atual: {{ formatarData(reagendando.dataHoraInicio) }} às {{ formatarHora(reagendando.dataHoraInicio) }}
+              </p>
+            </div>
+            <button (click)="fecharReagendar()"
+              class="text-lg leading-none px-2 cursor-pointer"
+              [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">✕</button>
+          </div>
+
+          @if (carregandoHorarios) {
+          <p class="text-sm text-center py-6" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+            Carregando horários…
+          </p>
+          } @else if (horariosDisponiveis.length === 0) {
+          <p class="text-sm text-center py-6" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+            Nenhum horário disponível no momento.
+          </p>
+          } @else {
+          <div class="flex gap-2 overflow-x-auto pb-2">
+            @for (d of horariosDisponiveis; track d.data) {
+            <button (click)="selecionarDia(d)"
+              class="shrink-0 px-3 py-2 rounded-lg text-xs font-medium border transition cursor-pointer"
+              [style.background-color]="diaSelecionado === d.data ? (config?.corPrimaria ?? '#059669') : (config?.tema === 'dark' ? '#0f172a' : '#f9fafb')"
+              [style.color]="diaSelecionado === d.data ? '#fff' : (config?.tema === 'dark' ? '#cbd5e1' : '#374151')"
+              [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'">
+              {{ formatarDiaChip(d.data) }}
+            </button>
+            }
+          </div>
+
+          @if (diaSelecionado) {
+          <div class="flex flex-wrap gap-2 mt-3">
+            @for (h of horasDoDiaSelecionado; track h) {
+            <button (click)="horaSelecionada = h"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer"
+              [style.background-color]="horaSelecionada === h ? (config?.corPrimaria ?? '#059669') : (config?.tema === 'dark' ? '#0f172a' : '#f9fafb')"
+              [style.color]="horaSelecionada === h ? '#fff' : (config?.tema === 'dark' ? '#cbd5e1' : '#374151')"
+              [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'">
+              {{ formatarSlot(h) }}
+            </button>
+            }
+          </div>
+          }
+          }
+
+          <div class="flex justify-end gap-2 mt-5">
+            <button (click)="fecharReagendar()"
+              class="px-4 py-2 rounded-lg font-medium text-xs transition cursor-pointer"
+              [style.background-color]="config?.tema === 'dark' ? '#334155' : '#f3f4f6'"
+              [style.color]="config?.tema === 'dark' ? '#e2e8f0' : '#374151'">
+              Voltar
+            </button>
+            <button (click)="confirmarReagendamento()" [disabled]="!podeConfirmarReagendamento"
+              class="px-4 py-2 text-white rounded-lg font-medium text-xs transition disabled:opacity-50 cursor-pointer"
+              [style.background-color]="config?.corPrimaria ?? '#059669'">
+              {{ salvandoReagendamento ? 'Salvando…' : 'Confirmar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+      }
     </div>
   `,
   standalone: false,
@@ -160,6 +240,21 @@ export class MinhaAgendaComponent implements OnInit {
   agendamentos: Agendamento[] = [];
   carregando = true;
   cancelandoId = '';
+
+  reagendando: Agendamento | null = null;
+  horariosDisponiveis: HorariosDisponiveis[] = [];
+  carregandoHorarios = false;
+  diaSelecionado = '';
+  horaSelecionada = '';
+  salvandoReagendamento = false;
+
+  get horasDoDiaSelecionado(): string[] {
+    return this.horariosDisponiveis.find((d) => d.data === this.diaSelecionado)?.horarios ?? [];
+  }
+
+  get podeConfirmarReagendamento(): boolean {
+    return !!this.diaSelecionado && !!this.horaSelecionada && !this.salvandoReagendamento;
+  }
 
   get proximos(): Agendamento[] {
     const agora = Date.now();
@@ -218,6 +313,96 @@ export class MinhaAgendaComponent implements OnInit {
 
   agendarNovo() {
     this.router.navigate(['/p', this.consultorioId]);
+  }
+
+  abrirReagendar(a: Agendamento) {
+    this.reagendando = a;
+    this.horariosDisponiveis = [];
+    this.diaSelecionado = '';
+    this.horaSelecionada = '';
+    this.carregarHorarios(a);
+  }
+
+  fecharReagendar() {
+    this.reagendando = null;
+    this.horariosDisponiveis = [];
+    this.carregandoHorarios = false;
+  }
+
+  private carregarHorarios(a: Agendamento) {
+    this.carregandoHorarios = true;
+    const inicio = new Date();
+    inicio.setDate(inicio.getDate() + 1);
+    const fim = new Date();
+    fim.setDate(fim.getDate() + (this.config?.diasAgenda ?? 14));
+
+    this.api
+      .getHorariosDisponiveis(
+        this.consultorioId,
+        a.profissionalId || undefined,
+        a.servicoId,
+        this.paraISOData(inicio),
+        this.paraISOData(fim),
+      )
+      .subscribe({
+        next: (res) => {
+          this.horariosDisponiveis = (res ?? []).filter((d) => (d.horarios?.length ?? 0) > 0);
+          this.carregandoHorarios = false;
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.horariosDisponiveis = [];
+          this.carregandoHorarios = false;
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  selecionarDia(d: HorariosDisponiveis) {
+    this.diaSelecionado = d.data;
+    this.horaSelecionada = '';
+  }
+
+  confirmarReagendamento() {
+    if (!this.reagendando || !this.podeConfirmarReagendamento) return;
+    this.salvandoReagendamento = true;
+    this.api
+      .reagendarMeuAgendamento(this.reagendando.id, this.montarDataHora(this.diaSelecionado, this.horaSelecionada))
+      .subscribe({
+        next: () => {
+          this.salvandoReagendamento = false;
+          this.reagendando = null;
+          this.carregar();
+        },
+        error: () => {
+          this.salvandoReagendamento = false;
+          alert('Não foi possível reagendar. O horário pode ter sido ocupado.');
+        },
+      });
+  }
+
+  formatarDiaChip(dataISO: string): string {
+    return new Date(dataISO).toLocaleDateString('pt-BR', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+    });
+  }
+
+  formatarSlot(hora: string): string {
+    return hora.substring(0, 5);
+  }
+
+  private paraISOData(d: Date): string {
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  private montarDataHora(diaData: string, hora: string): string {
+    const isoData = diaData.substring(0, 10);
+    return `${isoData}T${hora.substring(0, 5)}:00`;
   }
 
   sair() {

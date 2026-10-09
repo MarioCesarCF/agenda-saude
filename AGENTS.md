@@ -47,6 +47,7 @@
 | `POST /api/auth/login-paciente/{consultorioId:guid}` | No | Patient login email+senha (BCrypt, `Paciente.SenhaHash`); returns JWT with role claim `Paciente` + `{ token, id, nome, email, telefoneCelular, consultorioId }` (rate limited) |
 | `GET /api/pacientes/agendamentos` | JWT + PacienteOnly | Patient's own appointments, scoped by `PacienteId` + `ConsultorioId` claims, ordered desc |
 | `PATCH /api/pacientes/agendamentos/{id:guid}/cancelar` | JWT + PacienteOnly | Cancel own appointment (sets status=Cancelado, logs HistoricoAcao `CancelarAgendamentoPaciente`, no UsuarioId) |
+| `PATCH /api/pacientes/agendamentos/{id:guid}/reagendar` | JWT + PacienteOnly | Reschedule own appointment (body `{ novaDataHoraInicio }`; only `Agendado`/`Confirmado` and future; reuses conflict check; logs HistoricoAcao `ReagendarAgendamentoPaciente`, no UsuarioId) |
 | `POST /api/usuarios` | JWT + AdminOnly | Create user (Atendente/Profissional) |
 | `PUT /api/usuarios/{id}` | JWT + AdminOnly | Update user |
 | `DELETE /api/usuarios/{id}` | JWT + AdminOnly | Soft-delete user (sets Ativo=false, logs HistoricoAcao) |
@@ -84,7 +85,7 @@
 | `/admin/dashboard/perfil` | Admin | Edit own name/email + change password |
 | `/p/:consultorioId` | Publico | Patient booking wizard (4 steps) |
 | `/p/:consultorioId/entrar` | Publico | Patient portal login/register — tabs Entrar + Criar conta (public, no guard) |
-| `/p/:consultorioId/minha-agenda` | Publico | Patient's own appointments (próximas + histórico, cancelar) — `PacienteGuard` (redirects to `entrar`) |
+| `/p/:consultorioId/minha-agenda` | Publico | Patient's own appointments (próximas + histórico, cancelar, reagendar) — `PacienteGuard` (redirects to `entrar`) |
 
 ## Key gotchas
 - App module file is `app-module.ts`, **not** `app.module.ts`
@@ -102,7 +103,7 @@
 - Default JWT key in `appsettings.json` — **must** override in production
 - Google Sign-In (pacientes) via **Neon Auth** (mesma abordagem do Cardapio Online). Front usa `@neondatabase/neon-js` (`createAuthClient(AppConfig.neonAuthUrl)`), `signIn.social({ provider: 'google', callbackURL })` com redirect para `/p/{id}?via=google`; o draft do wizard é salvo em sessionStorage antes do redirect e restaurado no retorno. Backend valida o token de sessão **opaco** em `neon_auth.session`/`neon_auth."user"` (SQL raw via `NeonSessionValidator`, `INeonSessionValidator`) — não há `GoogleTokenValidator`/jwks. Sessões e OAuth (client id/secret) ficam no Neon Console. `AppConfig.neonAuthUrl` aponta para `https://<projeto>.neonauth.sa-east-1.aws.neon.tech/neondb/auth` (também em `appsettings.json` como `NeonAuth:Url`)
 - Portuguese locale: `registerLocaleData(localePt, 'pt-BR')` + `{ provide: LOCALE_ID, useValue: 'pt-BR' }` in `app-module.ts`. All `date` pipe formats render in Portuguese. `toLocaleDateString('pt-BR')` also used in some places
-- Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 55 tests)
+- Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 60 tests)
 - Frontend tests: Vitest v4 + jsdom (30 tests across 5 files: `auth.service.spec.ts`, `paciente-auth.service.spec.ts`, `loading.service.spec.ts`, `auth.interceptor.spec.ts`, `loading.interceptor.spec.ts`)
 
 ## Patient booking wizard (AgendamentoComponent)
