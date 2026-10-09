@@ -167,3 +167,17 @@ export interface GoogleLoginResponse {
   email: string | null;
   telefoneCelular: string | null;
 }
+
+export interface PacienteLoginRequest {
+  email: string;
+  senha: string;
+}
+
+export interface PacienteLoginResponse {
+  token: string;
+  id: string;
+  nome: string;
+  email: string | null;
+  telefoneCelular: string | null;
+  consultorioId: string;
+}

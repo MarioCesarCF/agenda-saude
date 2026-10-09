@@ -155,6 +155,62 @@ public class AgendamentoService
         return true;
     }
 
+    public async Task<List<AgendamentoResponse>> ListarAgendamentosDoPacienteAsync(
+        Guid consultorioId, Guid pacienteId)
+    {
+        return await _context.Agendamentos
+            .Include(a => a.Profissional)
+            .Include(a => a.Servico)
+            .Include(a => a.Paciente)
+            .Where(a => a.ConsultorioId == consultorioId && a.PacienteId == pacienteId)
+            .OrderByDescending(a => a.DataHoraInicio)
+            .Select(a => new AgendamentoResponse(
+                a.Id, a.ProfissionalId, a.Profissional != null ? a.Profissional.Nome : "A definir",
+                a.ServicoId, a.Servico.Nome, a.Servico.Preco,
+                a.PacienteId, a.Paciente.Nome,
+                a.DataHoraInicio, a.DataHoraFim,
+                a.Status.ToString(), a.DataCriacao))
+            .ToListAsync();
+    }
+
+    public async Task<bool> CancelarAgendamentoDoPacienteAsync(
+        Guid agendamentoId, Guid consultorioId, Guid pacienteId)
+    {
+        var agendamento = await _context.Agendamentos
+            .Include(a => a.Servico)
+            .Include(a => a.Paciente)
+            .FirstOrDefaultAsync(a => a.Id == agendamentoId
+                && a.ConsultorioId == consultorioId
+                && a.PacienteId == pacienteId);
+        if (agendamento is null) return false;
+
+        var detalhes = JsonSerializer.Serialize(new
+        {
+            profissionalId = agendamento.ProfissionalId,
+            servicoNome = agendamento.Servico?.Nome,
+            pacienteNome = agendamento.Paciente?.Nome,
+            dataHoraInicio = agendamento.DataHoraInicio,
+            dataHoraFim = agendamento.DataHoraFim,
+            statusAnterior = agendamento.Status.ToString(),
+            origem = "Paciente"
+        });
+
+        agendamento.Status = StatusAgendamento.Cancelado;
+
+        _context.HistoricoAcoes.Add(new HistoricoAcao
+        {
+            ConsultorioId = consultorioId,
+            UsuarioId = null,
+            Acao = "CancelarAgendamentoPaciente",
+            Entidade = "Agendamento",
+            EntidadeId = agendamentoId.ToString(),
+            Detalhes = detalhes
+        });
+
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<bool> ExcluirAgendamentoAsync(
         Guid id, Guid consultorioId, Guid usuarioId, string? motivo)
     {

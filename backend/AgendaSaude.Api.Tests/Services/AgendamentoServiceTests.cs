@@ -2,6 +2,7 @@ using AgendaSaude.Api.Data;
 using AgendaSaude.Api.DTOs;
 using AgendaSaude.Api.Models;
 using AgendaSaude.Api.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace AgendaSaude.Api.Tests.Services;
 
@@ -189,5 +190,98 @@ public class AgendamentoServiceTests : IDisposable
             DateTime.Today.AddDays(1), DateTime.Today.AddDays(3));
 
         Assert.Empty(result);
+    }
+
+    // ── ListarAgendamentosDoPacienteAsync ──
+
+    private async Task<Agendamento> CriarAgendamentoDiretoAsync(
+        Guid consultorioId, Guid pacienteId, Guid servicoId, DateTime inicio)
+    {
+        var a = new Agendamento
+        {
+            ConsultorioId = consultorioId,
+            ServicoId = servicoId,
+            PacienteId = pacienteId,
+            DataHoraInicio = inicio,
+            DataHoraFim = inicio.AddMinutes(30)
+        };
+        _context.Agendamentos.Add(a);
+        await _context.SaveChangesAsync();
+        return a;
+    }
+
+    [Fact]
+    public async Task ListarAgendamentosDoPaciente_DeveRetornarSomenteOsDoPaciente()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        var servico = await CriarServicoAsync(c.Id);
+        var paciente1 = await CriarPacienteAsync(c.Id, "João");
+        var paciente2 = await CriarPacienteAsync(c.Id, "Maria");
+
+        await CriarAgendamentoDiretoAsync(c.Id, paciente1.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+        await CriarAgendamentoDiretoAsync(c.Id, paciente1.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(3).AddHours(11));
+        await CriarAgendamentoDiretoAsync(c.Id, paciente2.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(4).AddHours(14));
+
+        var result = await _service.ListarAgendamentosDoPacienteAsync(c.Id, paciente1.Id);
+
+        Assert.Equal(2, result.Count);
+        Assert.All(result, a => Assert.Equal(paciente1.Id, a.PacienteId));
+        Assert.True(result[0].DataHoraInicio > result[1].DataHoraInicio);
+    }
+
+    [Fact]
+    public async Task ListarAgendamentosDoPaciente_PacienteDeOutroConsultorio_DeveRetornarVazio()
+    {
+        var c1 = await CriarConsultorioAsync("Clinica A");
+        var c2 = await CriarConsultorioAsync("Clinica B");
+        var servico = await CriarServicoAsync(c2.Id);
+        var paciente = await CriarPacienteAsync(c2.Id, "João");
+
+        await CriarAgendamentoDiretoAsync(c2.Id, paciente.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+
+        var result = await _service.ListarAgendamentosDoPacienteAsync(c1.Id, paciente.Id);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task CancelarAgendamentoDoPaciente_DeveCancelarERegistrarHistorico()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        var servico = await CriarServicoAsync(c.Id);
+        var paciente = await CriarPacienteAsync(c.Id, "João");
+        var agendamento = await CriarAgendamentoDiretoAsync(c.Id, paciente.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+
+        var ok = await _service.CancelarAgendamentoDoPacienteAsync(agendamento.Id, c.Id, paciente.Id);
+
+        Assert.True(ok);
+        var atualizado = await _context.Agendamentos.FindAsync(agendamento.Id);
+        Assert.Equal(StatusAgendamento.Cancelado, atualizado!.Status);
+        var historico = await _context.HistoricoAcoes
+            .FirstAsync(h => h.EntidadeId == agendamento.Id.ToString());
+        Assert.Equal("CancelarAgendamentoPaciente", historico.Acao);
+        Assert.Null(historico.UsuarioId);
+    }
+
+    [Fact]
+    public async Task CancelarAgendamentoDoPaciente_DeOutroPaciente_DeveRetornarFalse()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        var servico = await CriarServicoAsync(c.Id);
+        var dono = await CriarPacienteAsync(c.Id, "João");
+        var outro = await CriarPacienteAsync(c.Id, "Maria");
+        var agendamento = await CriarAgendamentoDiretoAsync(c.Id, dono.Id, servico.Id,
+            DateTime.UtcNow.Date.AddDays(2).AddHours(10));
+
+        var ok = await _service.CancelarAgendamentoDoPacienteAsync(agendamento.Id, c.Id, outro.Id);
+
+        Assert.False(ok);
+        var atualizado = await _context.Agendamentos.FindAsync(agendamento.Id);
+        Assert.Equal(StatusAgendamento.Agendado, atualizado!.Status);
     }
 }

@@ -82,22 +82,58 @@ public class AuthService
 
     public async Task<CadastroPacienteResponse?> CadastrarPacienteAsync(Guid consultorioId, CadastroPacienteRequest request)
     {
-        var existente = await _context.Pacientes
-            .AnyAsync(p => p.Email == request.Email && p.ConsultorioId == consultorioId);
-        if (existente) return null;
+        if (string.IsNullOrWhiteSpace(request.Email)) return null;
 
-        var paciente = new Paciente
+        var paciente = await _context.Pacientes
+            .FirstOrDefaultAsync(p => p.Email == request.Email && p.ConsultorioId == consultorioId);
+
+        if (paciente is not null)
+        {
+            if (paciente.SenhaHash is null && !string.IsNullOrWhiteSpace(request.Senha))
+            {
+                paciente.SenhaHash = BCrypt.Net.BCrypt.HashPassword(request.Senha);
+                await _context.SaveChangesAsync();
+                return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email);
+            }
+
+            return null;
+        }
+
+        paciente = new Paciente
         {
             ConsultorioId = consultorioId,
             Nome = request.Nome,
             Email = request.Email,
-            TelefoneCelular = request.TelefoneCelular
+            TelefoneCelular = request.TelefoneCelular,
+            SenhaHash = string.IsNullOrWhiteSpace(request.Senha)
+                ? null
+                : BCrypt.Net.BCrypt.HashPassword(request.Senha)
         };
 
         _context.Pacientes.Add(paciente);
         await _context.SaveChangesAsync();
 
         return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email);
+    }
+
+    public async Task<PacienteLoginResponse?> LoginPacienteAsync(Guid consultorioId, LoginPacienteRequest request)
+    {
+        var paciente = await _context.Pacientes
+            .FirstOrDefaultAsync(p => p.ConsultorioId == consultorioId
+                && p.Email == request.Email && p.Ativo);
+
+        if (paciente is null || paciente.SenhaHash is null
+            || !BCrypt.Net.BCrypt.Verify(request.Senha, paciente.SenhaHash))
+            return null;
+
+        var token = _tokenService.GerarToken(
+            paciente.Id, paciente.Email ?? "", paciente.Nome,
+            "Paciente", consultorioId);
+
+        return new PacienteLoginResponse(
+            token, paciente.Id.ToString(), paciente.Nome, paciente.Email,
+            string.IsNullOrWhiteSpace(paciente.TelefoneCelular) ? null : paciente.TelefoneCelular,
+            consultorioId);
     }
 
     public async Task<GoogleLoginResponse?> LoginGoogleAsync(Guid consultorioId, string sessionToken)

@@ -51,6 +51,17 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("login-paciente/{consultorioId:guid}")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> LoginPaciente(Guid consultorioId, [FromBody] LoginPacienteRequest request)
+    {
+        var result = await _authService.LoginPacienteAsync(consultorioId, request);
+        if (result is null)
+            return Unauthorized(new { erro = "Email ou senha inválidos" });
+
+        return Ok(result);
+    }
+
     [HttpPost("solicitar-reset")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> SolicitarReset([FromBody] SolicitarResetRequest request)
