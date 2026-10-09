@@ -104,7 +104,7 @@ public record ResetarSenhaRequest(
 );
 
 public record GoogleLoginRequest(
-    [Required][MaxLength(4096)] string IdToken
+    [Required][MaxLength(4096)] string Token
 );
 
 public record GoogleLoginResponse(Guid Id, string Nome, string? Email, string? TelefoneCelular);

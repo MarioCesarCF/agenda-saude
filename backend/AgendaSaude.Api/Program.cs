@@ -148,11 +148,7 @@ builder.Services.AddScoped<CadastroService>();
 builder.Services.AddScoped<UsuariosService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<ResetSenhaService>();
-
-builder.Services.AddSingleton<IGoogleTokenValidator>(sp =>
-    new GoogleTokenValidator(
-        builder.Configuration["Google:ClientId"] ?? string.Empty,
-        sp.GetRequiredService<ILogger<GoogleTokenValidator>>()));
+builder.Services.AddScoped<INeonSessionValidator, NeonSessionValidator>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -240,6 +236,9 @@ using (var scope = app.Services.CreateScope())
             END IF;
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Servicos' AND column_name='SemProfissional') THEN
                 ALTER TABLE "Servicos" ADD COLUMN "SemProfissional" BOOLEAN NOT NULL DEFAULT FALSE;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Pacientes' AND column_name='GoogleId' AND character_maximum_length IS NOT NULL AND character_maximum_length < 64) THEN
+                ALTER TABLE "Pacientes" ALTER COLUMN "GoogleId" TYPE VARCHAR(64);
             END IF;
         END $$;
     """);

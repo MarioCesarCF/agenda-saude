@@ -16,7 +16,7 @@ public class Paciente
 
     public string? SenhaHash { get; set; }
 
-    [MaxLength(20)] public string? GoogleId { get; set; }
+    [MaxLength(64)] public string? GoogleId { get; set; }
 
     [MaxLength(11)] public string? CPF { get; set; }
 

@@ -9,13 +9,13 @@ public class AuthService
 {
     private readonly AppDbContext _context;
     private readonly TokenService _tokenService;
-    private readonly IGoogleTokenValidator _googleTokenValidator;
+    private readonly INeonSessionValidator _neonSessionValidator;
 
-    public AuthService(AppDbContext context, TokenService tokenService, IGoogleTokenValidator googleTokenValidator)
+    public AuthService(AppDbContext context, TokenService tokenService, INeonSessionValidator neonSessionValidator)
     {
         _context = context;
         _tokenService = tokenService;
-        _googleTokenValidator = googleTokenValidator;
+        _neonSessionValidator = neonSessionValidator;
     }
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
@@ -100,9 +100,9 @@ public class AuthService
         return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email);
     }
 
-    public async Task<GoogleLoginResponse?> LoginGoogleAsync(Guid consultorioId, string idToken)
+    public async Task<GoogleLoginResponse?> LoginGoogleAsync(Guid consultorioId, string sessionToken)
     {
-        var info = await _googleTokenValidator.ValidarIdTokenAsync(idToken);
+        var info = await _neonSessionValidator.ValidarSessionTokenAsync(sessionToken);
         if (info is null) return null;
 
         var paciente = await _context.Pacientes

@@ -74,7 +74,7 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> LoginGoogle(Guid consultorioId, [FromBody] GoogleLoginRequest request)
     {
-        var result = await _authService.LoginGoogleAsync(consultorioId, request.IdToken);
+        var result = await _authService.LoginGoogleAsync(consultorioId, request.Token);
         if (result is null)
             return Unauthorized(new { erro = "Falha na autenticação com Google" });
 

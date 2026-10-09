@@ -11,14 +11,14 @@ public class AuthServiceTests : IDisposable
     private readonly AppDbContext _context;
     private readonly AuthService _authService;
     private readonly TokenService _tokenService;
-    private readonly FakeGoogleValidator _googleValidator = new();
+    private readonly FakeNeonValidator _neonValidator = new();
     private const string JwtKey = "test-key-for-auth-service-tests-32-chars-min";
 
     public AuthServiceTests()
     {
         _context = TestHelper.CreateInMemoryContext();
         _tokenService = new TokenService(JwtKey, "Test", "Test");
-        _authService = new AuthService(_context, _tokenService, _googleValidator);
+        _authService = new AuthService(_context, _tokenService, _neonValidator);
     }
 
     public void Dispose() => _context.Dispose();
@@ -210,9 +210,9 @@ public class AuthServiceTests : IDisposable
         var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
         _context.Consultorios.Add(consultorio);
         await _context.SaveChangesAsync();
-        _googleValidator.Resultado = new GoogleUserInfo("google-123", "João Silva", "joao@gmail.com");
+        _neonValidator.Resultado = new NeonUserInfo("google-123", "João Silva", "joao@gmail.com");
 
-        var result = await _authService.LoginGoogleAsync(consultorio.Id, "id-token");
+        var result = await _authService.LoginGoogleAsync(consultorio.Id, "sessao-opaca");
 
         Assert.NotNull(result);
         Assert.Equal("João Silva", result!.Nome);
@@ -240,9 +240,9 @@ public class AuthServiceTests : IDisposable
         };
         _context.Pacientes.Add(paciente);
         await _context.SaveChangesAsync();
-        _googleValidator.Resultado = new GoogleUserInfo("google-123", "João Silva", "joao@gmail.com");
+        _neonValidator.Resultado = new NeonUserInfo("google-123", "João Silva", "joao@gmail.com");
 
-        var result = await _authService.LoginGoogleAsync(consultorio.Id, "id-token");
+        var result = await _authService.LoginGoogleAsync(consultorio.Id, "sessao-opaca");
 
         Assert.NotNull(result);
         Assert.Equal(paciente.Id, result!.Id);
@@ -265,9 +265,9 @@ public class AuthServiceTests : IDisposable
         };
         _context.Pacientes.Add(paciente);
         await _context.SaveChangesAsync();
-        _googleValidator.Resultado = new GoogleUserInfo("google-abc", "João Silva", "joao@gmail.com");
+        _neonValidator.Resultado = new NeonUserInfo("google-abc", "João Silva", "joao@gmail.com");
 
-        var result = await _authService.LoginGoogleAsync(consultorio.Id, "id-token");
+        var result = await _authService.LoginGoogleAsync(consultorio.Id, "sessao-opaca");
 
         Assert.NotNull(result);
         Assert.Equal(paciente.Id, result!.Id);
@@ -282,7 +282,7 @@ public class AuthServiceTests : IDisposable
         var consultorio = new Consultorio { NomeFantasia = "C1", Email = "c1@test.com", TelefoneCelular = "11999999999" };
         _context.Consultorios.Add(consultorio);
         await _context.SaveChangesAsync();
-        _googleValidator.Resultado = null;
+        _neonValidator.Resultado = null;
 
         var result = await _authService.LoginGoogleAsync(consultorio.Id, "token-invalido");
 
@@ -306,20 +306,20 @@ public class AuthServiceTests : IDisposable
         };
         _context.Pacientes.Add(pacienteOutro);
         await _context.SaveChangesAsync();
-        _googleValidator.Resultado = new GoogleUserInfo("google-123", "João Silva", "joao@gmail.com");
+        _neonValidator.Resultado = new NeonUserInfo("google-123", "João Silva", "joao@gmail.com");
 
-        var result = await _authService.LoginGoogleAsync(c1.Id, "id-token");
+        var result = await _authService.LoginGoogleAsync(c1.Id, "sessao-opaca");
 
         Assert.NotNull(result);
         Assert.NotEqual(pacienteOutro.Id, result!.Id);
         Assert.Equal(2, await _context.Pacientes.CountAsync());
     }
 
-    private sealed class FakeGoogleValidator : IGoogleTokenValidator
+    private sealed class FakeNeonValidator : INeonSessionValidator
     {
-        public GoogleUserInfo? Resultado { get; set; }
+        public NeonUserInfo? Resultado { get; set; }
 
-        public Task<GoogleUserInfo?> ValidarIdTokenAsync(string idToken)
+        public Task<NeonUserInfo?> ValidarSessionTokenAsync(string sessionToken)
             => Task.FromResult(Resultado);
     }
 }
