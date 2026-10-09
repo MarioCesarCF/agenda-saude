@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import { createAuthClient } from '@neondatabase/neon-js/auth';
 import { ApiService } from '../services/api.service';
 import { AppConfig } from '../config/app.config';
 import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse } from '../models/models';
@@ -323,7 +324,7 @@ import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse }
           </div>
         </div>
 
-        @if (appConfig.googleClientId && !sucesso) {
+        @if (appConfig.neonAuthUrl && !sucesso) {
         <div class="mb-4 p-4 rounded-lg border"
           [style.border-color]="config?.tema === 'dark' ? '#334155' : '#e5e7eb'"
           [style.background-color]="config?.tema === 'dark' ? '#0f172a' : '#f9fafb'">
@@ -356,7 +357,21 @@ import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse }
           <p class="text-xs font-medium mb-2" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
             Entre com Google para preencher seus dados automaticamente
           </p>
-          <div id="google-btn"></div>
+          <button type="button" (click)="entrarComGoogle()"
+            class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition"
+            [style.border-color]="config?.tema === 'dark' ? '#475569' : '#d1d5db'"
+            [style.background-color]="config?.tema === 'dark' ? '#1e293b' : '#fff'"
+            [style.color]="config?.tema === 'dark' ? '#f1f5f9' : '#374151'"
+            (mouseenter)="$any($event.target).style.backgroundColor=(config?.tema === 'dark' ? '#334155' : '#f7f7f7')"
+            (mouseleave)="$any($event.target).style.backgroundColor=''">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+              <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+              <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+              <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+              <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+            </svg>
+            Entrar com Google
+          </button>
           }
         </div>
         }
@@ -503,7 +518,7 @@ export class AgendamentoComponent implements OnInit {
   readonly appConfig = AppConfig;
   googleConectado = false;
   googleCarregando = false;
-  private googleScriptLoading = false;
+  private neonClient: any = null;
 
   get nomeInvalido(): boolean {
     return this.submitted && !this.pacNome.trim();
@@ -515,6 +530,7 @@ export class AgendamentoComponent implements OnInit {
 
   ngOnInit() {
     this.consultorioId = this.route.snapshot.params['consultorioId'];
+    this.restaurarDraft();
 
     this.api.getConfiguracaoPublica(this.consultorioId).subscribe({
       next: (res) => {
@@ -524,6 +540,10 @@ export class AgendamentoComponent implements OnInit {
     });
 
     this.carregarProfissionaisServicos();
+
+    if (this.route.snapshot.queryParams['via'] === 'google') {
+      this.conectarGoogle();
+    }
   }
 
   private gerarCalendarioMes() {
@@ -633,7 +653,6 @@ export class AgendamentoComponent implements OnInit {
   irPara(passo: number) {
     if (passo <= this.passoAtual) {
       this.passoAtual = passo;
-      if (passo === 3) setTimeout(() => this.renderizarBotaoGoogle(), 0);
     }
   }
 
@@ -776,69 +795,43 @@ export class AgendamentoComponent implements OnInit {
     return this.dataSelecionada.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
-  private carregarScriptGoogle(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const win = window as any;
-      if (win.google?.accounts?.id) {
-        resolve();
-        return;
-      }
-      if (this.googleScriptLoading) {
-        const check = setInterval(() => {
-          if (win.google?.accounts?.id) {
-            clearInterval(check);
-            resolve();
-          }
-        }, 100);
-        setTimeout(() => clearInterval(check), 10000);
-        return;
-      }
-      this.googleScriptLoading = true;
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Falha ao carregar o Google'));
-      document.head.appendChild(script);
-    });
+  private clientNeon(): any {
+    if (!this.neonClient) {
+      this.neonClient = createAuthClient(AppConfig.neonAuthUrl);
+    }
+    return this.neonClient;
   }
 
   entrarStep3() {
     this.passoAtual = 3;
-    setTimeout(() => this.renderizarBotaoGoogle(), 0);
   }
 
-  private renderizarBotaoGoogle() {
-    if (!AppConfig.googleClientId || this.googleConectado) return;
-    const el = document.getElementById('google-btn');
-    if (!el) return;
-
-    this.carregarScriptGoogle().then(() => {
-      const win = window as any;
-      win.google.accounts.id.initialize({
-        client_id: AppConfig.googleClientId,
-        callback: (resp: any) => this.handleCredentialResponse(resp),
-      });
-      el.replaceChildren();
-      win.google.accounts.id.renderButton(el, {
-        theme: 'outline',
-        size: 'large',
-        shape: 'rectangular',
-        width: 320,
-      });
-    }).catch(() => {});
-  }
-
-  private handleCredentialResponse(response: any) {
-    const idToken = response?.credential as string | undefined;
-    if (!idToken) return;
-
-    this.googleCarregando = true;
+  async entrarComGoogle() {
+    this.salvarDraft();
     this.erro = '';
+    this.googleCarregando = true;
     this.cdr.detectChanges();
+    try {
+      const callbackURL = `${window.location.origin}/p/${this.consultorioId}?via=google`;
+      await this.clientNeon().signIn.social({ provider: 'google', callbackURL });
+    } catch {
+      this.googleCarregando = false;
+      this.erro = 'Falha ao entrar com Google. Tente novamente.';
+      this.cdr.detectChanges();
+    }
+  }
 
-    this.api.loginGoogle(this.consultorioId, idToken).subscribe({
+  private async conectarGoogle() {
+    this.googleCarregando = true;
+    const token = await this.obterTokenNeon();
+    if (!token) {
+      this.googleCarregando = false;
+      this.erro = 'Não foi possível conectar sua conta Google. Tente novamente.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.api.loginGoogle(this.consultorioId, token).subscribe({
       next: (res) => {
         this.googleCarregando = false;
         this.googleConectado = true;
@@ -849,16 +842,94 @@ export class AgendamentoComponent implements OnInit {
       },
       error: () => {
         this.googleCarregando = false;
-        this.erro = 'Falha ao entrar com Google. Tente novamente.';
+        this.erro = 'Falha ao conectar com Google. Tente novamente.';
         this.cdr.detectChanges();
       },
     });
   }
 
+  private async obterTokenNeon(): Promise<string | null> {
+    try {
+      const { data } = await this.clientNeon().getSession();
+      const sessao = data?.session as { token?: string } | null | undefined;
+      return sessao?.token ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private draftKey(): string {
+    return `agenda:${this.consultorioId}`;
+  }
+
+  private salvarDraft() {
+    try {
+      sessionStorage.setItem(this.draftKey(), JSON.stringify({
+        passoAtual: this.passoAtual,
+        profissionalId: this.profissionalId,
+        profissionalNome: this.profissionalNome,
+        servicoId: this.servicoId,
+        servicoNome: this.servicoNome,
+        servicoPreco: this.servicoPreco,
+        duracaoMin: this.duracaoMin,
+        servicoSemProfissional: this.servicoSemProfissional,
+        horarioSelecionado: this.horarioSelecionado,
+        dataISO: this.dataSelecionada ? this.dataSelecionada.toISOString() : null,
+        mesISO: this.mesAtual.toISOString(),
+        buscaProf: this.buscaProf,
+        buscaServ: this.buscaServ,
+        pacNome: this.pacNome,
+        pacEmail: this.pacEmail,
+        pacCelular: this.pacCelular,
+      }));
+    } catch { /* ignore */ }
+  }
+
+  private restaurarDraft() {
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(this.draftKey());
+    } catch {
+      return;
+    }
+    if (!raw) return;
+
+    try {
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      const str = (k: string): string => (typeof d[k] === 'string' ? (d[k] as string) : '');
+      const num = (k: string): number => (typeof d[k] === 'number' ? (d[k] as number) : 0);
+      const bool = (k: string): boolean => d[k] === true;
+
+      this.passoAtual = num('passoAtual');
+      this.profissionalId = str('profissionalId');
+      this.profissionalNome = str('profissionalNome');
+      this.servicoId = str('servicoId');
+      this.servicoNome = str('servicoNome');
+      this.servicoPreco = num('servicoPreco');
+      this.duracaoMin = num('duracaoMin');
+      this.servicoSemProfissional = bool('servicoSemProfissional');
+      this.horarioSelecionado = str('horarioSelecionado');
+      this.buscaProf = str('buscaProf');
+      this.buscaServ = str('buscaServ');
+      this.pacNome = str('pacNome');
+      this.pacEmail = str('pacEmail');
+      this.pacCelular = str('pacCelular');
+      const dataISO = str('dataISO');
+      const mesISO = str('mesISO');
+      if (dataISO) this.dataSelecionada = new Date(dataISO);
+      if (mesISO) this.mesAtual = new Date(mesISO);
+      sessionStorage.removeItem(this.draftKey());
+    } catch { /* ignore */ }
+
+    if (this.passoAtual >= 2) {
+      this.gerarCalendarioMes();
+      this.carregarHorarios();
+      this.cdr.detectChanges();
+    }
+  }
+
   desconectarGoogle() {
     this.googleConectado = false;
-    (window as any).google?.accounts?.id?.disableAutoSelect?.();
-    setTimeout(() => this.renderizarBotaoGoogle(), 0);
   }
 
   confirmar() {

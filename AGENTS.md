@@ -41,7 +41,7 @@
 | `POST /api/auth/login` | No | Admin login (returns token + nome + tema + cores + icone) |
 | `POST /api/auth/solicitar-reset` | No | Request password reset code by email (rate limited, no user enumeration) |
 | `POST /api/auth/resetar-senha` | No | Reset password with 6-digit code (body `{ token, novaSenha }`) |
-| `POST /api/auth/google/{consultorioId:guid}` | No | Google Sign-In: validates ID token (`{ idToken }`), creates/links patient by `GoogleId`/email, returns `{ id, nome, email, telefoneCelular }` |
+| `POST /api/auth/google/{consultorioId:guid}` | No | Google Sign-In via Neon Auth: validates the Neon session token (`{ token }`) in `neon_auth.session`/`neon_auth.user`, creates/links patient by `GoogleId`/email, returns `{ id, nome, email, telefoneCelular }` |
 | `POST /api/auth/cadastro-consultorio` | No | Register clinic (includes optional theme fields) |
 | `POST /api/usuarios` | JWT + AdminOnly | Create user (Atendente/Profissional) |
 | `PUT /api/usuarios/{id}` | JWT + AdminOnly | Update user |
@@ -95,7 +95,7 @@
 - `authInterceptor` is a functional interceptor (not class‑based)
 - Connection string in `appsettings.Development.json` (gitignored); fallback in `appsettings.json`
 - Default JWT key in `appsettings.json` — **must** override in production
-- Google Sign-In: `Google:ClientId` in `appsettings.json` (empty = not enabled). Backend validates the ID token (signature + issuer + audience + `email_verified`) via `GoogleTokenValidator` (jwks). Frontend loads `https://accounts.google.com/gsi/client` and renders the button on the wizard's confirm step; `AppConfig.googleClientId` in `frontend/src/app/config/app.config.ts`
+- Google Sign-In (pacientes) via **Neon Auth** (mesma abordagem do Cardapio Online). Front usa `@neondatabase/neon-js` (`createAuthClient(AppConfig.neonAuthUrl)`), `signIn.social({ provider: 'google', callbackURL })` com redirect para `/p/{id}?via=google`; o draft do wizard é salvo em sessionStorage antes do redirect e restaurado no retorno. Backend valida o token de sessão **opaco** em `neon_auth.session`/`neon_auth."user"` (SQL raw via `NeonSessionValidator`, `INeonSessionValidator`) — não há `GoogleTokenValidator`/jwks. Sessões e OAuth (client id/secret) ficam no Neon Console. `AppConfig.neonAuthUrl` aponta para `https://<projeto>.neonauth.sa-east-1.aws.neon.tech/neondb/auth` (também em `appsettings.json` como `NeonAuth:Url`)
 - Portuguese locale: `registerLocaleData(localePt, 'pt-BR')` + `{ provide: LOCALE_ID, useValue: 'pt-BR' }` in `app-module.ts`. All `date` pipe formats render in Portuguese. `toLocaleDateString('pt-BR')` also used in some places
 - Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 44 tests)
 - Frontend tests: Vitest v4 + jsdom (21 tests across 4 files: `auth.service.spec.ts`, `loading.service.spec.ts`, `auth.interceptor.spec.ts`, `loading.interceptor.spec.ts`)

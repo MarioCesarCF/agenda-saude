@@ -144,10 +144,10 @@ export class ApiService {
     );
   }
 
-  loginGoogle(consultorioId: string, idToken: string) {
+  loginGoogle(consultorioId: string, token: string) {
     return this.http.post<GoogleLoginResponse>(
       `${this.baseUrl}/auth/google/${consultorioId}`,
-      { idToken },
+      { token },
     );
   }
 
