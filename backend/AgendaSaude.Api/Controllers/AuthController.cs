@@ -12,15 +12,18 @@ public class AuthController : ControllerBase
     private readonly AuthService _authService;
     private readonly ResetSenhaService _resetSenhaService;
     private readonly ConsultorioResolver _consultorioResolver;
+    private readonly ContaPacienteService _contaPacienteService;
 
     public AuthController(
         AuthService authService,
         ResetSenhaService resetSenhaService,
-        ConsultorioResolver consultorioResolver)
+        ConsultorioResolver consultorioResolver,
+        ContaPacienteService contaPacienteService)
     {
         _authService = authService;
         _resetSenhaService = resetSenhaService;
         _consultorioResolver = consultorioResolver;
+        _contaPacienteService = contaPacienteService;
     }
 
     [HttpPost("login")]
@@ -142,6 +145,43 @@ public class AuthController : ControllerBase
 
     [HttpPost("logout-paciente")]
     public async Task<IActionResult> LogoutPaciente([FromBody] RefreshRequest? request)
+    {
+        await _authService.LogoutAsync(request?.RefreshToken);
+        return Ok(new { mensagem = "Logout realizado com sucesso" });
+    }
+
+    [HttpPost("cadastro-conta-paciente")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> CadastrarContaPaciente([FromBody] CadastroContaPacienteRequest request)
+    {
+        var (resposta, emailEmUso) = await _contaPacienteService.CadastrarAsync(request);
+        if (emailEmUso)
+            return Conflict(new { erro = "Email já cadastrado" });
+        return Ok(resposta);
+    }
+
+    [HttpPost("login-conta-paciente")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> LoginContaPaciente([FromBody] LoginContaPacienteRequest request)
+    {
+        var result = await _contaPacienteService.LoginAsync(request);
+        if (result is null)
+            return Unauthorized(new { erro = "Email ou senha inválidos" });
+        return Ok(result);
+    }
+
+    [HttpPost("refresh-conta-paciente")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> RefreshContaPaciente([FromBody] RefreshRequest request)
+    {
+        var result = await _contaPacienteService.RefreshAsync(request.RefreshToken);
+        if (result is null)
+            return Unauthorized(new { erro = "Sessão expirada" });
+        return Ok(result);
+    }
+
+    [HttpPost("logout-conta-paciente")]
+    public async Task<IActionResult> LogoutContaPaciente([FromBody] RefreshRequest? request)
     {
         await _authService.LogoutAsync(request?.RefreshToken);
         return Ok(new { mensagem = "Logout realizado com sucesso" });

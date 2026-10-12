@@ -103,7 +103,10 @@ public class CadastroService
             .FirstOrDefaultAsync(p => p.Nome == nome && p.TelefoneCelular == telefone && p.ConsultorioId == consultorioId);
 
         if (existente is not null)
+        {
+            await VincularContaPacienteAsync(existente);
             return new CadastroPacienteResponse(existente.Id, existente.Nome, existente.Email);
+        }
 
         var paciente = new Paciente
         {
@@ -116,7 +119,25 @@ public class CadastroService
         _context.Pacientes.Add(paciente);
         await _context.SaveChangesAsync();
 
+        await VincularContaPacienteAsync(paciente);
+
         return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email);
+    }
+
+    private async Task VincularContaPacienteAsync(Paciente paciente)
+    {
+        if (string.IsNullOrWhiteSpace(paciente.Email) || paciente.ContaPacienteId.HasValue)
+            return;
+
+        var email = paciente.Email.Trim().ToLowerInvariant();
+        var conta = await _context.ContasPacientes
+            .FirstOrDefaultAsync(c => c.Email == email);
+
+        if (conta is not null)
+        {
+            paciente.ContaPacienteId = conta.Id;
+            await _context.SaveChangesAsync();
+        }
     }
 
     public async Task<CadastroPacienteResponse?> CriarPacienteCompletoAsync(

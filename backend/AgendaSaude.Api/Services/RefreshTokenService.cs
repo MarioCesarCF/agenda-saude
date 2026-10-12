@@ -17,7 +17,7 @@ public class RefreshTokenService
         _context = context;
     }
 
-    public async Task<string> GerarAsync(Guid consultorioId, Guid? usuarioId, Guid? pacienteId)
+    public async Task<string> GerarAsync(Guid? consultorioId, Guid? usuarioId, Guid? pacienteId, Guid? contaPacienteId = null)
     {
         var raw = GerarToken();
 
@@ -27,6 +27,7 @@ public class RefreshTokenService
             ConsultorioId = consultorioId,
             UsuarioId = usuarioId,
             PacienteId = pacienteId,
+            ContaPacienteId = contaPacienteId,
             ExpiraEm = DateTime.UtcNow.Add(Duracao)
         });
 

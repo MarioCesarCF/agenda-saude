@@ -972,8 +972,8 @@ export class AgendamentoComponent implements OnInit {
       telefoneCelular: this.pacCelular,
     }).subscribe({
       next: () => {
-        this.sucesso = 'Agendamento confirmado!';
-        this.cdr.detectChanges();
+        const destino = this.config?.slug || this.consultorioId;
+        this.router.navigate(['/p', destino, 'minha-agenda']);
       },
       error: (err) => {
         this.erro = err.status === 409

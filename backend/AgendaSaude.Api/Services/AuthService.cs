@@ -148,6 +148,7 @@ public class AuthService
             if (paciente.SenhaHash is null && !string.IsNullOrWhiteSpace(request.Senha))
             {
                 paciente.SenhaHash = BCrypt.Net.BCrypt.HashPassword(request.Senha);
+                await VincularContaPacienteAsync(paciente);
                 await _context.SaveChangesAsync();
                 return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email);
             }
@@ -168,6 +169,8 @@ public class AuthService
 
         _context.Pacientes.Add(paciente);
         await _context.SaveChangesAsync();
+
+        await VincularContaPacienteAsync(paciente);
 
         return new CadastroPacienteResponse(paciente.Id, paciente.Nome, paciente.Email);
     }
@@ -252,6 +255,8 @@ public class AuthService
             .Select(c => c.Slug)
             .FirstOrDefaultAsync() ?? "";
 
+        await VincularContaPacienteAsync(paciente);
+
         var access = _tokenService.GerarToken(
             paciente.Id, paciente.Email ?? "", paciente.Nome, "Paciente", consultorioId);
         var refresh = await _refreshTokenService.GerarAsync(consultorioId, null, paciente.Id);
@@ -260,6 +265,22 @@ public class AuthService
             paciente.Id, paciente.Nome, paciente.Email,
             string.IsNullOrWhiteSpace(paciente.TelefoneCelular) ? null : paciente.TelefoneCelular,
             access, refresh, consultorioId, slug);
+    }
+
+    private async Task VincularContaPacienteAsync(Paciente paciente)
+    {
+        if (string.IsNullOrWhiteSpace(paciente.Email) || paciente.ContaPacienteId.HasValue)
+            return;
+
+        var email = paciente.Email.Trim().ToLowerInvariant();
+        var conta = await _context.ContasPacientes
+            .FirstOrDefaultAsync(c => c.Email == email);
+
+        if (conta is not null)
+        {
+            paciente.ContaPacienteId = conta.Id;
+            await _context.SaveChangesAsync();
+        }
     }
 
     public async Task LogoutAsync(string? refreshToken)

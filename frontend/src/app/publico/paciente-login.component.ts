@@ -218,6 +218,11 @@ import type { ConfiguracaoResponse } from '../models/models';
       <p class="text-xs text-center" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
         <a (click)="voltarAgendamento()" class="underline cursor-pointer">← Voltar para o agendamento</a>
       </p>
+      <p class="text-xs text-center" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">
+        <a (click)="irParaContaGlobal()" class="underline cursor-pointer">
+          Já tem cadastro em outros consultórios? Veja tudo em um só lugar →
+        </a>
+      </p>
     </div>
   `,
   standalone: false,
@@ -349,5 +354,9 @@ export class PacienteLoginComponent implements OnInit {
 
   voltarAgendamento() {
     this.router.navigate(['/p', this.consultorioId]);
+  }
+
+  irParaContaGlobal() {
+    this.router.navigate(['/paciente', 'entrar']);
   }
 }

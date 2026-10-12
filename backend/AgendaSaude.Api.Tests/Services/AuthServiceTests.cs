@@ -262,6 +262,25 @@ public class AuthServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CadastrarPaciente_ContaGlobalComMesmoEmail_DeveVincularPaciente()
+    {
+        var consultorio = new Consultorio { NomeFantasia = "Clínica", Email = "c@test.com", TelefoneCelular = "11999999999" };
+        _context.Consultorios.Add(consultorio);
+        await _context.SaveChangesAsync();
+
+        var conta = new ContaPaciente { Nome = "João", Email = "joao@test.com" };
+        _context.ContasPacientes.Add(conta);
+        await _context.SaveChangesAsync();
+
+        var request = new CadastroPacienteRequest("João", "joao@test.com", "11988888888", null);
+        var result = await _authService.CadastrarPacienteAsync(consultorio.Id, request);
+
+        Assert.NotNull(result);
+        var paciente = await _context.Pacientes.FirstAsync(p => p.Email == "joao@test.com");
+        Assert.Equal(conta.Id, paciente.ContaPacienteId);
+    }
+
+    [Fact]
     public async Task LoginPaciente_CredenciaisValidas_DeveRetornarTokenEDados()
     {
         var consultorioId = await CriarPacienteComSenhaAsync("paciente@test.com", "senha123");

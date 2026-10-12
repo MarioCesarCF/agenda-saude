@@ -3,7 +3,7 @@
 ## Stack
 - **Backend:** .NET 10 Web API + EF Core 10 + Npgsql (Neon PostgreSQL)
 - **Frontend:** Angular 21 (module‑based, non‑standalone) + Tailwind CSS v4
-- **Auth:** JWT + BCrypt (admin); public booking (no auth)
+- **Auth:** JWT + BCrypt (admin); patient portal (per-clinic `Paciente` email+senha); global patient account (`ContaPaciente`); public booking (no auth)
 
 ## Commands
 | Component | Action | Command |
@@ -12,7 +12,7 @@
 | Backend | Test | `dotnet test` (xUnit + InMemory EF Core, in `AgendaSaude.Api.Tests`) |
 | Frontend | Dev server | `ng serve` (port 4200) |
 | Frontend | Build | `ng build` |
-| Frontend | Test | `ng test --no-watch` (Vitest + jsdom, 21 tests) |
+| Frontend | Test | `ng test --no-watch` (Vitest + jsdom, 45 tests) |
 
 ## Architecture
 - **Monorepo:** `backend/AgendaSaude.Api/` + `frontend/`
@@ -21,7 +21,7 @@
 - **CORS:** `AllowDevelopment` (any origin) in dev, `AllowProduction` (configurable origins) in prod
 - **JSON:** `camelCase` + `ReferenceHandler.IgnoreCycles`
 - **Locale:** Portuguese (`pt-BR`) registered via `registerLocaleData` + `LOCALE_ID` provider in `app-module.ts`
-- **Guards:** Functional (`CanActivateFn`) — `AuthGuard`, `AdminGuard`
+- **Guards:** Functional (`CanActivateFn`) — `AuthGuard`, `AdminGuard`, `PacienteGuard`, `ContaPacienteGuard`
 
 ## Git workflow
 - **`master`** is the stable branch — never push directly
@@ -48,6 +48,14 @@
 | `GET /api/pacientes/agendamentos` | JWT + PacienteOnly | Patient's own appointments, scoped by `PacienteId` + `ConsultorioId` claims, ordered desc |
 | `PATCH /api/pacientes/agendamentos/{id:guid}/cancelar` | JWT + PacienteOnly | Cancel own appointment (sets status=Cancelado, logs HistoricoAcao `CancelarAgendamentoPaciente`, no UsuarioId) |
 | `PATCH /api/pacientes/agendamentos/{id:guid}/reagendar` | JWT + PacienteOnly | Reschedule own appointment (body `{ novaDataHoraInicio }`; only `Agendado`/`Confirmado` and future; reuses conflict check; logs HistoricoAcao `ReagendarAgendamentoPaciente`, no UsuarioId) |
+| `POST /api/auth/cadastro-conta-paciente` | No | Create global patient account (email+senha, `GoogleId` optional); auto-links existing `Paciente` by email (rate limited, link via `VincularContaPacienteAsync`) |
+| `POST /api/auth/login-conta-paciente` | No | Global patient login (email+senha, BCrypt `ContaPaciente.SenhaHash`); returns JWT with role claim `ContaPaciente` + `{ token, id, nome, email, telefoneCelular, refreshToken }` (rate limited); re-links orphans by email |
+| `POST /api/auth/refresh-conta-paciente` | No | Rotate global refresh token (rate limited) |
+| `POST /api/auth/logout-conta-paciente` | No | Revoke global refresh token (no auth) |
+| `GET /api/conta-paciente/perfil` | JWT + ContaPacienteOnly | Global account profile (no new refresh token) |
+| `GET /api/conta-paciente/agendamentos` | JWT + ContaPacienteOnly | All appointments across clinics (patients linked by `ContaPacienteId` **or** same email), ordered desc, each with clinic theme/slug/colors for grouping |
+| `PATCH /api/conta-paciente/agendamentos/{id:guid}/cancelar` | JWT + ContaPacienteOnly | Cancel own appointment (sets status=Cancelado, logs `CancelarAgendamentoPaciente`, no UsuarioId) |
+| `PATCH /api/conta-paciente/agendamentos/{id:guid}/reagendar` | JWT + ContaPacienteOnly | Reschedule own appointment (body `{ novaDataHoraInicio }`; only `Agendado`/`Confirmado`/future; conflict check; logs `ReagendarAgendamentoPaciente`, no UsuarioId) |
 | `POST /api/usuarios` | JWT + AdminOnly | Create user (Atendente/Profissional) |
 | `PUT /api/usuarios/{id}` | JWT + AdminOnly | Update user |
 | `DELETE /api/usuarios/{id}` | JWT + AdminOnly | Soft-delete user (sets Ativo=false, logs HistoricoAcao) |
@@ -86,6 +94,8 @@
 | `/p/:consultorioId` | Publico | Patient booking wizard (4 steps) |
 | `/p/:consultorioId/entrar` | Publico | Patient portal login/register — tabs Entrar + Criar conta (public, no guard) |
 | `/p/:consultorioId/minha-agenda` | Publico | Patient's own appointments (próximas + histórico, cancelar, reagendar) — `PacienteGuard` (redirects to `entrar`) |
+| `/paciente` | Paciente | Global patient home — all appointments grouped by clinic (uses slug/theme/colors) — `ContaPacienteGuard` (redirects to `/paciente/entrar` with `?redirect=`) |
+| `/paciente/entrar` | Paciente | Global patient login/register (public, no guard; redirects logged-in users to `/paciente`) |
 
 ## Key gotchas
 - App module file is `app-module.ts`, **not** `app.module.ts`
@@ -97,14 +107,14 @@
 - Admin layouts use dynamic colors via `[style.*]` bindings (NOT Tailwind color classes) because colors are runtime-configurable
 - Dark mode card backgrounds: **never** use `bg-white` + `[class.bg-slate-800]` — Tailwind v4 CSS specificity causes `bg-white` to override `bg-slate-800`. Always use `[style.background-color]` inline bindings for reliable dark mode rendering
 - Patient portal uses `/p/{consultorioId}` with a GUID — no auth required
-- Auth state (admin) in localStorage key `auth` — `AuthService` reads/writes it; patient portal auth in key `auth-paciente` — `PacienteAuthService` reads/writes it (signals: `token()`, `nome()`, `email()`, `telefoneCelular()`, `consultorioId()`)
-- `authInterceptor` is a functional interceptor (not class‑based). It attaches the **admin** token except for `/api/pacientes/**`, which uses the **patient** token (`PacienteAuthService`) — the two tokens never mix
+- Auth state (admin) in localStorage key `auth` — `AuthService` reads/writes it; patient portal auth in key `auth-paciente` — `PacienteAuthService` reads/writes it (signals: `token()`, `nome()`, `email()`, `telefoneCelular()`, `consultorioId()`); global patient account in key `auth-conta-paciente` — `ContaPacienteAuthService` reads/writes it (signals: `token()`, `contaId()`, `nome()`, `email()`, `telefoneCelular()`)
+- `authInterceptor` is a functional interceptor (not class‑based). It picks the token by URL prefix: `/api/conta-paciente/**` → `ContaPacienteAuthService`, `/api/pacientes/**` → `PacienteAuthService`, everything else → admin `AuthService`. The three tokens never mix; on 401 it refreshes via the matching endpoint (`/api/auth/refresh-conta-paciente`, `/api/auth/refresh-paciente`, `/api/auth/refresh`)
 - Connection string in `appsettings.Development.json` (gitignored); fallback in `appsettings.json`
 - Default JWT key in `appsettings.json` — **must** override in production
 - Google Sign-In (pacientes) via **Neon Auth** (mesma abordagem do Cardapio Online). Front usa `@neondatabase/neon-js` (`createAuthClient(AppConfig.neonAuthUrl)`), `signIn.social({ provider: 'google', callbackURL })` com redirect para `/p/{id}?via=google`; o draft do wizard é salvo em sessionStorage antes do redirect e restaurado no retorno. O SDK sobrescreve `session.token` com o **JWT EdDSA** (header `set-auth-jwt` exposto via CORS no `/get-session`), então o backend valida a assinatura do JWT contra `neon_auth.jwks` + confere o usuário em `neon_auth."user"` (`NeonJwt` + `NeonSessionValidator`, EdDSA via `BouncyCastle.Cryptography`) e, como fallback, resolve o **token opaco** em `neon_auth.session` (SQL raw). Sessões e OAuth (client id/secret) ficam no Neon Console. `AppConfig.neonAuthUrl` aponta para `https://<projeto>.neonauth.sa-east-1.aws.neon.tech/neondb/auth` (também em `appsettings.json` como `NeonAuth:Url`)
 - Portuguese locale: `registerLocaleData(localePt, 'pt-BR')` + `{ provide: LOCALE_ID, useValue: 'pt-BR' }` in `app-module.ts`. All `date` pipe formats render in Portuguese. `toLocaleDateString('pt-BR')` also used in some places
-- Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 98 tests)
-- Frontend tests: Vitest v4 + jsdom (30 tests across 5 files: `auth.service.spec.ts`, `paciente-auth.service.spec.ts`, `loading.service.spec.ts`, `auth.interceptor.spec.ts`, `loading.interceptor.spec.ts`)
+- Backend tests: xUnit + `Microsoft.EntityFrameworkCore.InMemory` (project: `AgendaSaude.Api.Tests`, 118 tests)
+- Frontend tests: Vitest v4 + jsdom (45 tests across 6 files: `auth.service.spec.ts`, `paciente-auth.service.spec.ts`, `conta-paciente-auth.service.spec.ts`, `loading.service.spec.ts`, `auth.interceptor.spec.ts`, `loading.interceptor.spec.ts`)
 
 ## Patient booking wizard (AgendamentoComponent)
 **Steps** (4, with progress bar):
@@ -136,12 +146,13 @@
 
 **Appointment days:** Start from tomorrow (not today); window controlled by `Consultorio.DiasAgenda` (default 2, configurable 1–30)
 
-## Models (9 entities)
-`Consultorio` → `Usuario`, `Profissional`, `Servico`, `Paciente`, `Agendamento`, `HorarioDisponivel`, `BloqueioAgenda`, `ProfissionalServico`, `HistoricoAcao`
+## Models (10 entities)
+`Consultorio` → `Usuario`, `Profissional`, `Servico`, `Paciente`, `Agendamento`, `HorarioDisponivel`, `BloqueioAgenda`, `ProfissionalServico`, `HistoricoAcao`; `ContaPaciente` (global account)
 - All cascade‑delete from `Consultorio`; FK to Profissional/Paciente/Servico are `Restrict`
 - `Agendamento` unique index on `(ProfissionalId, DataHoraInicio)`
 - `Usuario` unique index on `(Email, ConsultorioId)`
 - `ProfissionalServico` composite PK on `(ProfissionalId, ServicoId)`
+- `ContaPaciente` unique index on `Email`; `Paciente.ContaPacienteId` FK → `ContaPaciente` (`SetNull` on delete); `RefreshToken` has nullable `ConsultorioId` + nullable `ContaPacienteId` (Cascade on conta delete)
 - `Servico` has `SemProfissional` (bool) — services like X-rays don't need a specific professional
 - `HorarioDisponivel` has nullable `ProfissionalId?` AND nullable `ServicoId?` — supports per-professional hours, clinic-wide hours (both null), and service-specific hours (`ServicoId` set, `ProfissionalId` null)
 - `HistoricoAcao` — audit trail for destructive actions (ExcluirAgendamento, Reagendar, ExcluirUsuario); FKs to Consultorio and Usuario

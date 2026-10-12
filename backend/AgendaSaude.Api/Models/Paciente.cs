@@ -8,6 +8,8 @@ public class Paciente
 
     public Guid ConsultorioId { get; set; }
 
+    public Guid? ContaPacienteId { get; set; }
+
     [Required][MaxLength(200)] public string Nome { get; set; } = string.Empty;
 
     [MaxLength(100)] public string? Email { get; set; }
@@ -41,5 +43,6 @@ public class Paciente
     public DateTime DataCadastro { get; set; } = DateTime.UtcNow;
 
     public Consultorio Consultorio { get; set; } = null!;
+    public ContaPaciente? ContaPaciente { get; set; }
     public ICollection<Agendamento> Agendamentos { get; set; } = [];
 }

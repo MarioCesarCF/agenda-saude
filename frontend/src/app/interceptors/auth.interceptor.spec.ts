@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { PacienteAuthService } from '../services/paciente-auth.service';
+import { ContaPacienteAuthService } from '../services/conta-paciente-auth.service';
 import { authInterceptor } from './auth.interceptor';
 
 describe('authInterceptor', () => {
@@ -12,6 +13,7 @@ describe('authInterceptor', () => {
   let httpClient: HttpClient;
   let authService: AuthService;
   let pacienteAuthService: PacienteAuthService;
+  let contaPacienteAuthService: ContaPacienteAuthService;
 
   beforeEach(() => {
     localStorage.clear();
@@ -28,6 +30,7 @@ describe('authInterceptor', () => {
     httpClient = TestBed.inject(HttpClient);
     authService = TestBed.inject(AuthService);
     pacienteAuthService = TestBed.inject(PacienteAuthService);
+    contaPacienteAuthService = TestBed.inject(ContaPacienteAuthService);
   });
 
   afterEach(() => {
@@ -87,6 +90,23 @@ describe('authInterceptor', () => {
     req.flush([]);
   });
 
+  it('should use conta token for /api/conta-paciente requests', () => {
+    contaPacienteAuthService['setAuth']({
+      token: 'conta-jwt-token',
+      id: 'c1',
+      nome: 'Maria',
+      email: 'maria@test.com',
+      telefoneCelular: '11977777777',
+      refreshToken: 'conta-refresh-1',
+    });
+
+    httpClient.get('/api/conta-paciente/agendamentos').subscribe();
+
+    const req = httpMock.expectOne('/api/conta-paciente/agendamentos');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer conta-jwt-token');
+    req.flush([]);
+  });
+
   it('should refresh admin token and retry on 401', () => {
     authService['setAuth']({
       token: 'old-admin-token',
@@ -134,5 +154,38 @@ describe('authInterceptor', () => {
     retryReq.flush({ ok: true });
 
     expect(resultado).toEqual({ ok: true });
+  });
+
+  it('should refresh conta token and retry on 401', () => {
+    contaPacienteAuthService['setAuth']({
+      token: 'old-conta-token',
+      id: 'c1',
+      nome: 'Maria',
+      email: 'maria@test.com',
+      telefoneCelular: '11977777777',
+      refreshToken: 'conta-refresh-1',
+    });
+
+    let resultado: unknown = null;
+    httpClient.get('/api/conta-paciente/agendamentos').subscribe((res) => (resultado = res));
+
+    httpMock.expectOne('/api/conta-paciente/agendamentos').flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    const refreshReq = httpMock.expectOne('http://localhost:5268/api/auth/refresh-conta-paciente');
+    expect(refreshReq.request.body).toEqual({ refreshToken: 'conta-refresh-1' });
+    refreshReq.flush({
+      token: 'new-conta-token',
+      id: 'c1',
+      nome: 'Maria',
+      email: 'maria@test.com',
+      telefoneCelular: '11977777777',
+      refreshToken: 'conta-refresh-2',
+    });
+
+    const retryReq = httpMock.expectOne('/api/conta-paciente/agendamentos');
+    expect(retryReq.request.headers.get('Authorization')).toBe('Bearer new-conta-token');
+    retryReq.flush([{ id: 'a1' }]);
+
+    expect(resultado).toEqual([{ id: 'a1' }]);
   });
 });

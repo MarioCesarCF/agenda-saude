@@ -10,4 +10,7 @@ public abstract class ApiControllerBase : ControllerBase
 
     protected bool TryGetUsuarioId(out Guid usuarioId)
         => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out usuarioId);
+
+    protected bool TryGetContaPacienteId(out Guid contaPacienteId)
+        => Guid.TryParse(User.FindFirstValue("ContaPacienteId"), out contaPacienteId);
 }

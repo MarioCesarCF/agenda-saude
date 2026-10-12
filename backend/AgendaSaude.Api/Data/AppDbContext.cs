@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<HistoricoAcao> HistoricoAcoes => Set<HistoricoAcao>();
     public DbSet<ResetToken> ResetTokens => Set<ResetToken>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<ContaPaciente> ContasPacientes => Set<ContaPaciente>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,8 +66,19 @@ public class AppDbContext : DbContext
                   .WithMany(c => c.Pacientes)
                   .HasForeignKey(p => p.ConsultorioId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(p => p.ContaPaciente)
+                  .WithMany(c => c.Pacientes)
+                  .HasForeignKey(p => p.ContaPacienteId)
+                  .OnDelete(DeleteBehavior.SetNull);
             entity.HasIndex(p => new { p.Email, p.ConsultorioId });
             entity.HasIndex(p => new { p.GoogleId, p.ConsultorioId });
+            entity.HasIndex(p => p.ContaPacienteId);
+        });
+
+        modelBuilder.Entity<ContaPaciente>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.HasIndex(c => c.Email).IsUnique();
         });
 
         modelBuilder.Entity<Agendamento>(entity =>
@@ -173,8 +185,13 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(t => t.PacienteId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(t => t.ContaPaciente)
+                  .WithMany()
+                  .HasForeignKey(t => t.ContaPacienteId)
+                  .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(t => t.UsuarioId);
             entity.HasIndex(t => t.PacienteId);
+            entity.HasIndex(t => t.ContaPacienteId);
         });
     }
 }

@@ -193,3 +193,47 @@ export interface PacienteLoginResponse {
   slug: string;
   refreshToken: string;
 }
+
+export interface CadastroContaPacienteRequest {
+  nome: string;
+  email: string;
+  telefoneCelular: string;
+  senha: string;
+}
+
+export interface ContaPacienteLoginRequest {
+  email: string;
+  senha: string;
+}
+
+export interface ContaPacienteResponse {
+  token: string;
+  id: string;
+  nome: string;
+  email: string;
+  telefoneCelular: string | null;
+  refreshToken: string;
+}
+
+export interface AgendamentoConta {
+  id: string;
+  profissionalId?: string;
+  profissionalNome: string;
+  servicoId: string;
+  servicoNome: string;
+  servicoPreco: number;
+  pacienteId: string;
+  pacienteNome: string;
+  dataHoraInicio: string;
+  dataHoraFim: string;
+  status: string;
+  dataCriacao: string;
+  consultorioId: string;
+  consultorioNome: string;
+  consultorioSlug: string;
+  consultorioTema: string;
+  consultorioCorPrimaria: string;
+  consultorioCorSecundaria: string;
+  consultorioCorDestaque: string;
+  consultorioIcone: string | null;
+}

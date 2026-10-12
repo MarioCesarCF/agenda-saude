@@ -27,6 +27,12 @@ const STATUS_LABEL: Record<string, string> = {
           <p class="text-xs" [style.color]="config?.tema === 'dark' ? '#94a3b8' : '#6b7280'">Olá, {{ pacienteAuth.nome() }}</p>
         </div>
         <div class="flex gap-2">
+          <button (click)="irParaContaGlobal()"
+            class="px-3 py-2 rounded-lg font-medium text-xs transition cursor-pointer"
+            [style.background-color]="config?.tema === 'dark' ? '#334155' : '#ecfdf5'"
+            [style.color]="config?.corSecundaria ?? '#059669'">
+            Todos os consultórios
+          </button>
           <button (click)="agendarNovo()"
             class="px-3 py-2 text-white rounded-lg font-medium text-xs transition cursor-pointer"
             [style.background-color]="config?.corPrimaria ?? '#059669'">
@@ -312,7 +318,11 @@ export class MinhaAgendaComponent implements OnInit {
   }
 
   agendarNovo() {
-    this.router.navigate(['/p', this.consultorioId]);
+    this.router.navigate(['/p', this.config?.slug || this.consultorioId]);
+  }
+
+  irParaContaGlobal() {
+    this.router.navigate(['/paciente']);
   }
 
   abrirReagendar(a: Agendamento) {
@@ -407,7 +417,7 @@ export class MinhaAgendaComponent implements OnInit {
 
   sair() {
     this.pacienteAuth.logout();
-    this.router.navigate(['/p', this.consultorioId]);
+    this.router.navigate(['/p', this.config?.slug || this.consultorioId]);
   }
 
   rotuloStatus(status: string): string {

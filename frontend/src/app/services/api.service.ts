@@ -12,6 +12,7 @@ import type {
   HorarioDisponivel,
   Usuario,
   GoogleLoginResponse,
+  AgendamentoConta,
 } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
@@ -216,6 +217,21 @@ export class ApiService {
   reagendarMeuAgendamento(id: string, novaDataHoraInicio: string) {
     return this.http.patch<Agendamento>(
       `${this.baseUrl}/pacientes/agendamentos/${id}/reagendar`,
+      { novaDataHoraInicio },
+    );
+  }
+
+  getMeusAgendamentosConta() {
+    return this.http.get<AgendamentoConta[]>(`${this.baseUrl}/conta-paciente/agendamentos`);
+  }
+
+  cancelarMeuAgendamentoConta(id: string) {
+    return this.http.patch(`${this.baseUrl}/conta-paciente/agendamentos/${id}/cancelar`, {});
+  }
+
+  reagendarMeuAgendamentoConta(id: string, novaDataHoraInicio: string) {
+    return this.http.patch<AgendamentoConta>(
+      `${this.baseUrl}/conta-paciente/agendamentos/${id}/reagendar`,
       { novaDataHoraInicio },
     );
   }

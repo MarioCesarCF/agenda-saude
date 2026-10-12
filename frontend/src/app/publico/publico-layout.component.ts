@@ -1,5 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer } from '@angular/platform-browser';
 import { ApiService } from '../services/api.service';
 import type { ConfiguracaoResponse } from '../models/models';
@@ -22,6 +22,12 @@ import type { ConfiguracaoResponse } from '../models/models';
               Agende sua consulta
             </p>
           </div>
+          <button (click)="irParaContaGlobal()"
+            class="ml-auto shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"
+            [style.background-color]="config?.tema === 'dark' ? '#334155' : 'rgba(255,255,255,0.2)'"
+            [style.color]="'#fff'">
+            Minha Agenda
+          </button>
         </div>
       </header>
       }
@@ -34,6 +40,7 @@ import type { ConfiguracaoResponse } from '../models/models';
 })
 export class PublicoLayoutComponent implements OnInit {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private api = inject(ApiService);
   private sanitizer = inject(DomSanitizer);
 
@@ -49,6 +56,10 @@ export class PublicoLayoutComponent implements OnInit {
         this.configLoaded = true;
       },
     });
+  }
+
+  irParaContaGlobal() {
+    this.router.navigate(['/paciente']);
   }
 
   get iconeSvg() {

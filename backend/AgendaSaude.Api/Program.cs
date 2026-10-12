@@ -76,6 +76,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim(ClaimTypes.Role, "Admin"));
     options.AddPolicy("PacienteOnly", policy =>
         policy.RequireClaim(ClaimTypes.Role, "Paciente"));
+    options.AddPolicy("ContaPacienteOnly", policy =>
+        policy.RequireClaim(ClaimTypes.Role, "ContaPaciente"));
 });
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -153,6 +155,7 @@ builder.Services.AddScoped<ResetSenhaService>();
 builder.Services.AddScoped<INeonSessionValidator, NeonSessionValidator>();
 builder.Services.AddScoped<RefreshTokenService>();
 builder.Services.AddScoped<ConsultorioResolver>();
+builder.Services.AddScoped<ContaPacienteService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -362,6 +365,65 @@ using (var scope = app.Services.CreateScope())
         );
         CREATE INDEX IF NOT EXISTS "IX_ResetTokens_UsuarioId" ON "ResetTokens" ("UsuarioId");
         CREATE INDEX IF NOT EXISTS "IX_ResetTokens_TokenHash" ON "ResetTokens" ("TokenHash");
+    """);
+
+    // Create ContasPacientes table for existing databases
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "ContasPacientes" (
+            "Id" UUID NOT NULL DEFAULT gen_random_uuid(),
+            "Email" VARCHAR(100) NOT NULL,
+            "Nome" VARCHAR(200) NOT NULL,
+            "TelefoneCelular" VARCHAR(20) NULL,
+            "SenhaHash" TEXT NULL,
+            "GoogleId" VARCHAR(64) NULL,
+            "Ativo" BOOLEAN NOT NULL DEFAULT TRUE,
+            "DataCadastro" TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT "PK_ContasPacientes" PRIMARY KEY ("Id")
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_ContasPacientes_Email" ON "ContasPacientes" ("Email");
+    """);
+
+    // Add Pacientes.ContaPacienteId for existing databases
+    db.Database.ExecuteSqlRaw("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Pacientes' AND column_name='ContaPacienteId') THEN
+                ALTER TABLE "Pacientes" ADD COLUMN "ContaPacienteId" UUID NULL;
+            END IF;
+        END $$;
+    """);
+    db.Database.ExecuteSqlRaw("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='FK_Pacientes_ContasPacientes_ContaPacienteId') THEN
+                ALTER TABLE "Pacientes" ADD CONSTRAINT "FK_Pacientes_ContasPacientes_ContaPacienteId"
+                    FOREIGN KEY ("ContaPacienteId") REFERENCES "ContasPacientes"("Id") ON DELETE SET NULL;
+            END IF;
+        END $$;
+        CREATE INDEX IF NOT EXISTS "IX_Pacientes_ContaPacienteId" ON "Pacientes" ("ContaPacienteId");
+    """);
+
+    // RefreshTokens: allow global conta tokens (null ConsultorioId) + ContaPacienteId
+    db.Database.ExecuteSqlRaw("""
+        DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='RefreshTokens' AND column_name='ConsultorioId' AND is_nullable = 'NO') THEN
+                ALTER TABLE "RefreshTokens" ALTER COLUMN "ConsultorioId" DROP NOT NULL;
+            END IF;
+        END $$;
+    """);
+    db.Database.ExecuteSqlRaw("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='RefreshTokens' AND column_name='ContaPacienteId') THEN
+                ALTER TABLE "RefreshTokens" ADD COLUMN "ContaPacienteId" UUID NULL;
+            END IF;
+        END $$;
+    """);
+    db.Database.ExecuteSqlRaw("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='FK_RefreshTokens_ContasPacientes_ContaPacienteId') THEN
+                ALTER TABLE "RefreshTokens" ADD CONSTRAINT "FK_RefreshTokens_ContasPacientes_ContaPacienteId"
+                    FOREIGN KEY ("ContaPacienteId") REFERENCES "ContasPacientes"("Id") ON DELETE CASCADE;
+            END IF;
+        END $$;
+        CREATE INDEX IF NOT EXISTS "IX_RefreshTokens_ContaPacienteId" ON "RefreshTokens" ("ContaPacienteId");
     """);
 }
 
