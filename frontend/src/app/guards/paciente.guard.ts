@@ -3,11 +3,13 @@ import type { CanActivateFn } from '@angular/router';
 import { Router } from '@angular/router';
 import { PacienteAuthService } from '../services/paciente-auth.service';
 
-export const PacienteGuard: CanActivateFn = (route) => {
+export const PacienteGuard: CanActivateFn = (route, state) => {
   const pacienteAuth = inject(PacienteAuthService);
   const router = inject(Router);
-  const consultorioId = route.paramMap.get('consultorioId') ?? undefined;
-  if (pacienteAuth.isLoggedIn(consultorioId)) return true;
-  router.navigate(['/p', consultorioId, 'entrar']);
+  const consultorio = route.paramMap.get('consultorioId') ?? undefined;
+  if (pacienteAuth.isLoggedIn(consultorio)) return true;
+  router.navigate(['/p', consultorio, 'entrar'], {
+    queryParams: { redirect: state.url },
+  });
   return false;
 };

@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<ProfissionalServico> ProfissionaisServicos => Set<ProfissionalServico>();
     public DbSet<HistoricoAcao> HistoricoAcoes => Set<HistoricoAcao>();
     public DbSet<ResetToken> ResetTokens => Set<ResetToken>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +26,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(c => c.Id);
             entity.HasIndex(c => c.Email).IsUnique();
+            entity.HasIndex(c => c.Slug).IsUnique();
             entity.Property(c => c.Documento).HasMaxLength(20);
         });
 
@@ -152,6 +154,27 @@ public class AppDbContext : DbContext
                   .HasForeignKey(t => t.UsuarioId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(t => t.UsuarioId);
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.TokenHash).HasMaxLength(200).IsRequired();
+            entity.HasIndex(t => t.TokenHash).IsUnique();
+            entity.HasOne(t => t.Consultorio)
+                  .WithMany()
+                  .HasForeignKey(t => t.ConsultorioId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(t => t.Usuario)
+                  .WithMany()
+                  .HasForeignKey(t => t.UsuarioId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(t => t.Paciente)
+                  .WithMany()
+                  .HasForeignKey(t => t.PacienteId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(t => t.UsuarioId);
+            entity.HasIndex(t => t.PacienteId);
         });
     }
 }

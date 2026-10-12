@@ -192,6 +192,56 @@ public class AgendamentoServiceTests : IDisposable
         Assert.Empty(result);
     }
 
+    [Fact]
+    public async Task ObterHorariosDisponiveis_JanelaInteiraAlemDoDiasAgenda_DeveRetornarVazio()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        c.DiasAgenda = 2;
+        await _context.SaveChangesAsync();
+        var prof = await CriarProfissionalAsync(c.Id, "Dr. Silva");
+
+        var result = await _service.ObterHorariosDisponiveisAsync(
+            c.Id, prof.Id, null,
+            DateTime.Today.AddDays(5), DateTime.Today.AddDays(20));
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task ObterHorariosDisponiveis_JanelaAmpla_SoRetornaAteUltimaDataDoDiasAgenda()
+    {
+        var c = await CriarConsultorioAsync("Clinica A");
+        c.DiasAgenda = 2;
+        await _context.SaveChangesAsync();
+        var prof = await CriarProfissionalAsync(c.Id, "Dr. Silva");
+
+        foreach (DayOfWeek dia in Enum.GetValues<DayOfWeek>())
+        {
+            _context.HorariosDisponiveis.Add(new HorarioDisponivel
+            {
+                ConsultorioId = c.Id,
+                ProfissionalId = prof.Id,
+                DiaSemana = dia,
+                HoraInicio = TimeSpan.FromHours(9),
+                HoraFim = TimeSpan.FromHours(12)
+            });
+        }
+        await _context.SaveChangesAsync();
+
+        var result = await _service.ObterHorariosDisponiveisAsync(
+            c.Id, prof.Id, null,
+            DateTime.Today.AddDays(-7), DateTime.Today.AddDays(20));
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(DateTime.Today.AddDays(1).Date, result[0].Data.Date);
+        Assert.Equal(DateTime.Today.AddDays(2).Date, result[1].Data.Date);
+        Assert.All(result, r =>
+        {
+            Assert.True(r.Data.Date >= DateTime.Today.AddDays(1));
+            Assert.True(r.Data.Date <= DateTime.Today.AddDays(2));
+        });
+    }
+
     // ── ListarAgendamentosDoPacienteAsync ──
 
     private async Task<Agendamento> CriarAgendamentoDiretoAsync(

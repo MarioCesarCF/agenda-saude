@@ -15,6 +15,28 @@ public class AgendamentoService
         _context = context;
     }
 
+    private async Task<(DateTime? Inicio, DateTime? Fim)> NormalizarJanelaAsync(
+        Guid consultorioId, DateTime? dataInicio = null, DateTime? dataFim = null)
+    {
+        var diasAgenda = Math.Clamp(
+            await _context.Consultorios
+                .Where(c => c.Id == consultorioId)
+                .Select(c => c.DiasAgenda)
+                .FirstOrDefaultAsync(), 1, 30);
+
+        var primeiraData = DateTime.Today.AddDays(1);
+        var ultimaData = DateTime.Today.AddDays(diasAgenda);
+
+        var inicio = (dataInicio ?? primeiraData).Date;
+        var fim = (dataFim ?? ultimaData).Date;
+
+        if (inicio < primeiraData) inicio = primeiraData;
+        if (fim > ultimaData) fim = ultimaData;
+
+        if (fim < inicio) return (null, null);
+        return (inicio, fim);
+    }
+
     public async Task<List<AgendamentoResponse>> ListarAgendamentosAsync(
         Guid consultorioId, DateTime? data = null, Guid? profissionalId = null,
         DateTime? dataInicio = null, DateTime? dataFim = null)
@@ -400,8 +422,9 @@ public class AgendamentoService
         Guid consultorioId, Guid profissionalId, Guid? servicoId = null,
         DateTime? dataInicio = null, DateTime? dataFim = null)
     {
-        var inicio = dataInicio ?? DateTime.Today;
-        var fim = dataFim ?? DateTime.Today.AddDays(14);
+        var (inicio, fim) = await NormalizarJanelaAsync(consultorioId, dataInicio, dataFim);
+        if (inicio is null || fim is null)
+            return [];
 
         var profissionalValido = await _context.Profissionais
             .AnyAsync(p => p.Id == profissionalId && p.ConsultorioId == consultorioId);
@@ -436,7 +459,7 @@ public class AgendamentoService
 
         var resultados = new List<HorariosDisponiveisResponse>();
 
-        for (var data = inicio.Date; data <= fim.Date; data = data.AddDays(1))
+        for (var data = inicio!.Value.Date; data <= fim!.Value.Date; data = data.AddDays(1))
         {
             if (bloqueios.Any(b => b.DataInicio.Date <= data && b.DataFim.Date >= data))
                 continue;
@@ -471,8 +494,9 @@ public class AgendamentoService
         Guid consultorioId, Guid servicoId,
         DateTime? dataInicio = null, DateTime? dataFim = null)
     {
-        var inicio = dataInicio ?? DateTime.Today;
-        var fim = dataFim ?? DateTime.Today.AddDays(14);
+        var (inicio, fim) = await NormalizarJanelaAsync(consultorioId, dataInicio, dataFim);
+        if (inicio is null || fim is null)
+            return [];
 
         var servico = await _context.Servicos
             .FirstOrDefaultAsync(s => s.Id == servicoId && s.ConsultorioId == consultorioId);
@@ -530,7 +554,7 @@ public class AgendamentoService
 
         var resultados = new List<HorariosDisponiveisResponse>();
 
-        for (var data = inicio.Date; data <= fim.Date; data = data.AddDays(1))
+        for (var data = inicio!.Value.Date; data <= fim!.Value.Date; data = data.AddDays(1))
         {
             if (bloqueios.Any(b => b.DataInicio.Date <= data && b.DataFim.Date >= data))
                 continue;

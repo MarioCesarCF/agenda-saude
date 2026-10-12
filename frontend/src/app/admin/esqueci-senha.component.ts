@@ -7,6 +7,7 @@ import { AuthService } from '../services/auth.service';
     <div class="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div class="w-full max-w-md">
         <div class="text-center mb-8">
+          <img src="logo_circ.png" alt="Agenda Saúde" class="w-20 h-20 mx-auto mb-3 rounded-full object-cover" />
           <h1 class="text-3xl font-bold text-emerald-600">Agenda Saúde</h1>
           <p class="text-gray-500 mt-2">Recuperação de senha</p>
         </div>

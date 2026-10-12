@@ -20,7 +20,9 @@ public record LoginResponse(
     string CorSecundaria,
     string CorDestaque,
     string? Icone,
-    int DiasAgenda
+    int DiasAgenda,
+    string Slug,
+    string RefreshToken
 );
 
 public record CadastroConsultorioRequest(
@@ -40,10 +42,15 @@ public record CadastroConsultorioRequest(
     string? CorSecundaria,
     string? CorDestaque,
     string? Icone,
-    int? DiasAgenda
+    int? DiasAgenda,
+    string? Slug = null
 );
 
-public record CadastroConsultorioResponse(Guid Id, string NomeFantasia, string Email);
+public record CadastroConsultorioResponse(Guid Id, string NomeFantasia, string Email, string Slug);
+
+public record RefreshRequest(
+    [Required][MaxLength(200)] string RefreshToken
+);
 
 public record ConfiguracaoPrivadaResponse(
     string NomeFantasia,
@@ -61,10 +68,12 @@ public record ConfiguracaoPrivadaResponse(
     string CorSecundaria,
     string CorDestaque,
     string? Icone,
-    int DiasAgenda
+    int DiasAgenda,
+    string Slug
 );
 
 public record ConfiguracaoPublicaResponse(
+    Guid ConsultorioId,
     string NomeFantasia,
     string Cidade,
     string? Estado,
@@ -73,7 +82,8 @@ public record ConfiguracaoPublicaResponse(
     string CorSecundaria,
     string CorDestaque,
     string? Icone,
-    int DiasAgenda
+    int DiasAgenda,
+    string Slug
 );
 
 public record ConfiguracaoUpdateRequest(
@@ -83,7 +93,8 @@ public record ConfiguracaoUpdateRequest(
     string? CorSecundaria,
     string? CorDestaque,
     string? Icone,
-    int? DiasAgenda
+    int? DiasAgenda,
+    string? Slug = null
 );
 
 public record CadastroPacienteRequest(
@@ -104,7 +115,9 @@ public record PacienteLoginResponse(
     string Nome,
     string? Email,
     string? TelefoneCelular,
-    Guid ConsultorioId
+    Guid ConsultorioId,
+    string Slug,
+    string RefreshToken
 );
 
 public record CadastroPacienteResponse(Guid Id, string Nome, string? Email);
@@ -122,4 +135,13 @@ public record GoogleLoginRequest(
     [Required][MaxLength(4096)] string Token
 );
 
-public record GoogleLoginResponse(Guid Id, string Nome, string? Email, string? TelefoneCelular);
+public record GoogleLoginResponse(
+    Guid Id,
+    string Nome,
+    string? Email,
+    string? TelefoneCelular,
+    string Token,
+    string RefreshToken,
+    Guid ConsultorioId,
+    string Slug
+);

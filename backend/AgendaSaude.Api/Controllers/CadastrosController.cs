@@ -141,8 +141,8 @@ public class CadastrosController : ApiControllerBase
     public async Task<IActionResult> AtualizarConfiguracao([FromBody] ConfiguracaoUpdateRequest request)
     {
         if (!TryGetConsultorioId(out var consultorioId)) return Unauthorized();
-        var result = await _cadastroService.AtualizarConfiguracaoAsync(consultorioId, request);
-        if (!result) return NotFound();
+        var (ok, erro) = await _cadastroService.AtualizarConfiguracaoAsync(consultorioId, request);
+        if (!ok) return BadRequest(new { erro });
         return Ok(await _cadastroService.ObterConfiguracaoAsync(consultorioId));
     }
 

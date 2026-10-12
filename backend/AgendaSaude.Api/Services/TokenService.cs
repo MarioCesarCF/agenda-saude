@@ -7,6 +7,8 @@ namespace AgendaSaude.Api.Services;
 
 public class TokenService
 {
+    public static readonly TimeSpan Duracao = TimeSpan.FromMinutes(15);
+
     private readonly string _jwtKey;
     private readonly string? _issuer;
     private readonly string? _audience;
@@ -36,7 +38,7 @@ public class TokenService
             issuer: _issuer,
             audience: _audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(4),
+            expires: DateTime.UtcNow.Add(Duracao),
             signingCredentials: creds
         );
 

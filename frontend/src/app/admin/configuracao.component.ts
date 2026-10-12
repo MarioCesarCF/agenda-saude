@@ -23,6 +23,22 @@ import type { ConfiguracaoResponse } from '../models/models';
         </div>
 
         <div>
+          <label class="block text-sm font-medium mb-1" [style.color]="auth.tema() === 'dark' ? '#e2e8f0' : '#374151'">Endereço público (link do paciente)</label>
+          <input [(ngModel)]="form.slug"
+            class="w-full border rounded-lg px-3 py-2 text-sm"
+            [class.bg-slate-700]="auth.tema() === 'dark'"
+            [class.border-slate-600]="auth.tema() === 'dark'"
+            [class.text-white]="auth.tema() === 'dark'"
+            placeholder="minha-clinica">
+          <p class="text-xs mt-1" [style.color]="auth.tema() === 'dark' ? '#94a3b8' : '#6b7280'">
+            Link: {{ linkPublico }}
+          </p>
+          <p class="text-xs" [style.color]="auth.tema() === 'dark' ? '#64748b' : '#9ca3af'">
+            Use apenas letras minúsculas, números e hífens (3 a 60 caracteres).
+          </p>
+        </div>
+
+        <div>
           <label class="block text-sm font-medium mb-2" [style.color]="auth.tema() === 'dark' ? '#e2e8f0' : '#374151'">Tema</label>
           <div class="flex gap-3">
             <button (click)="form.tema = 'light'"
@@ -168,10 +184,14 @@ export class ConfiguracaoComponent implements OnInit {
   form: ConfiguracaoResponse = {
     nomeFantasia: '', email: '', telefoneCelular: '', tema: 'light',
     corPrimaria: '#059669', corSecundaria: '#10b981', corDestaque: '#f59e0b',
-    icone: null, diasAgenda: 2,
+    icone: null, diasAgenda: 2, consultorioId: '', slug: '',
     documento: null, logradouro: null, numero: null, bairro: null,
     cidade: null, estado: null, cep: null,
   };
+
+  get linkPublico(): string {
+    return `${window.location.origin}/p/${this.form.slug}`;
+  }
   salvando = false;
   mensagem = '';
 
@@ -205,6 +225,7 @@ export class ConfiguracaoComponent implements OnInit {
       corDestaque: this.form.corDestaque,
       icone: this.form.icone,
       diasAgenda: this.form.diasAgenda,
+      slug: this.form.slug,
     }).subscribe({
       next: (res) => {
         this.form = { ...res };
@@ -213,9 +234,9 @@ export class ConfiguracaoComponent implements OnInit {
         this.mensagem = 'Configuração salva com sucesso!';
         this.cdr.detectChanges();
       },
-      error: () => {
+      error: (err) => {
         this.salvando = false;
-        this.mensagem = 'Erro ao salvar. Tente novamente.';
+        this.mensagem = err?.error?.erro ?? 'Erro ao salvar. Tente novamente.';
         this.cdr.detectChanges();
       },
     });

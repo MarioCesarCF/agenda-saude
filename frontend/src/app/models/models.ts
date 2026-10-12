@@ -17,6 +17,8 @@ export interface LoginResponse {
   corDestaque: string;
   icone?: string;
   diasAgenda: number;
+  slug: string;
+  refreshToken: string;
 }
 
 export interface CadastroConsultorioRequest {
@@ -36,6 +38,7 @@ export interface CadastroConsultorioRequest {
   corSecundaria?: string;
   corDestaque?: string;
   icone?: string;
+  slug?: string;
 }
 
 export interface ConfiguracaoResponse {
@@ -55,6 +58,8 @@ export interface ConfiguracaoResponse {
   corDestaque: string;
   icone: string | null;
   diasAgenda: number;
+  consultorioId: string;
+  slug: string;
 }
 
 export interface ConfiguracaoUpdateRequest {
@@ -65,6 +70,7 @@ export interface ConfiguracaoUpdateRequest {
   corDestaque?: string;
   icone?: string | null;
   diasAgenda?: number;
+  slug?: string;
 }
 
 export interface CadastroPacienteRequest {
@@ -166,6 +172,10 @@ export interface GoogleLoginResponse {
   nome: string;
   email: string | null;
   telefoneCelular: string | null;
+  token: string;
+  refreshToken: string;
+  consultorioId: string;
+  slug: string;
 }
 
 export interface PacienteLoginRequest {
@@ -180,4 +190,6 @@ export interface PacienteLoginResponse {
   email: string | null;
   telefoneCelular: string | null;
   consultorioId: string;
+  slug: string;
+  refreshToken: string;
 }

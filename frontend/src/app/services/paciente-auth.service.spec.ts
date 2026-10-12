@@ -12,6 +12,8 @@ function mockPacienteLoginResponse(overrides: Partial<PacienteLoginResponse> = {
     email: 'joao@test.com',
     telefoneCelular: '11988888888',
     consultorioId: 'consultorio-id-1',
+    slug: 'clinica-teste',
+    refreshToken: 'paciente-refresh-123',
     ...overrides,
   };
 }
@@ -105,24 +107,44 @@ describe('PacienteAuthService', () => {
     req.flush({ id: 'paciente-id-1', nome: 'João Paciente', email: 'joao@test.com' });
   });
 
-  it('should clear auth on logout without backend call', () => {
+  it('should revoke session and clear auth on logout', () => {
     const data = mockPacienteLoginResponse();
     localStorage.setItem('auth-paciente', JSON.stringify(data));
     service['setAuth'](data);
 
     service.logout();
 
+    const req = httpMock.expectOne('http://localhost:5268/api/auth/logout-paciente');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ refreshToken: 'paciente-refresh-123' });
+    req.flush({});
+
     expect(service.token()).toBeNull();
     expect(service.nome()).toBe('');
     expect(localStorage.getItem('auth-paciente')).toBeNull();
   });
 
-  it('should return true only for matching consultorioId', () => {
-    const data = mockPacienteLoginResponse({ consultorioId: 'consultorio-id-1' });
+  it('should refresh and update auth signals', () => {
+    service['setAuth'](mockPacienteLoginResponse());
+
+    const data = mockPacienteLoginResponse({ token: 'novo-token' });
+    service.refresh().subscribe((res) => {
+      expect(res.token).toBe('novo-token');
+      expect(service.token()).toBe('novo-token');
+    });
+
+    const req = httpMock.expectOne('http://localhost:5268/api/auth/refresh-paciente');
+    expect(req.request.body).toEqual({ refreshToken: 'paciente-refresh-123' });
+    req.flush(data);
+  });
+
+  it('should return true for matching consultorioId or slug', () => {
+    const data = mockPacienteLoginResponse({ consultorioId: 'consultorio-id-1', slug: 'clinica-teste' });
     service['setAuth'](data);
 
     expect(service.isLoggedIn()).toBe(true);
     expect(service.isLoggedIn('consultorio-id-1')).toBe(true);
+    expect(service.isLoggedIn('clinica-teste')).toBe(true);
     expect(service.isLoggedIn('consultorio-id-2')).toBe(false);
   });
 });

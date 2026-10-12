@@ -49,6 +49,8 @@ describe('authInterceptor', () => {
       corSecundaria: '#111',
       corDestaque: '#222',
       diasAgenda: 2,
+      slug: 'clinic',
+      refreshToken: 'refresh-1',
     });
 
     httpClient.get('/api/test').subscribe();
@@ -74,6 +76,8 @@ describe('authInterceptor', () => {
       email: 'joao@test.com',
       telefoneCelular: '11988888888',
       consultorioId: 'c1',
+      slug: 'clinica',
+      refreshToken: 'paciente-refresh-1',
     });
 
     httpClient.get('/api/pacientes/agendamentos').subscribe();
@@ -81,5 +85,54 @@ describe('authInterceptor', () => {
     const req = httpMock.expectOne('/api/pacientes/agendamentos');
     expect(req.request.headers.get('Authorization')).toBe('Bearer paciente-jwt-token');
     req.flush([]);
+  });
+
+  it('should refresh admin token and retry on 401', () => {
+    authService['setAuth']({
+      token: 'old-admin-token',
+      id: '1',
+      nome: 'Test',
+      email: 'test@test.com',
+      perfil: 'Admin',
+      consultorioId: 'c1',
+      nomeFantasia: 'Clinic',
+      tema: 'light',
+      corPrimaria: '#000',
+      corSecundaria: '#111',
+      corDestaque: '#222',
+      diasAgenda: 2,
+      slug: 'clinic',
+      refreshToken: 'refresh-1',
+    });
+
+    let resultado: unknown = null;
+    httpClient.get('/api/test').subscribe((res) => (resultado = res));
+
+    httpMock.expectOne('/api/test').flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    const refreshReq = httpMock.expectOne('http://localhost:5268/api/auth/refresh');
+    expect(refreshReq.request.body).toEqual({ refreshToken: 'refresh-1' });
+    refreshReq.flush({
+      token: 'new-admin-token',
+      id: '1',
+      nome: 'Test',
+      email: 'test@test.com',
+      perfil: 'Admin',
+      consultorioId: 'c1',
+      nomeFantasia: 'Clinic',
+      tema: 'light',
+      corPrimaria: '#000',
+      corSecundaria: '#111',
+      corDestaque: '#222',
+      diasAgenda: 2,
+      slug: 'clinic',
+      refreshToken: 'refresh-2',
+    });
+
+    const retryReq = httpMock.expectOne('/api/test');
+    expect(retryReq.request.headers.get('Authorization')).toBe('Bearer new-admin-token');
+    retryReq.flush({ ok: true });
+
+    expect(resultado).toEqual({ ok: true });
   });
 });

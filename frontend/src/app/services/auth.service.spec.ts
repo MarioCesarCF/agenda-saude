@@ -19,6 +19,8 @@ function mockLoginResponse(overrides: Partial<LoginResponse> = {}): LoginRespons
     corSecundaria: '#10b981',
     corDestaque: '#f59e0b',
     diasAgenda: 2,
+    slug: 'clinica-teste',
+    refreshToken: 'refresh-token-123',
     ...overrides,
   };
 }
@@ -87,6 +89,36 @@ describe('AuthService', () => {
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ email: 'teste@clinica.com', senha: 'senha123' });
     req.flush(data);
+  });
+
+  it('should set slug signal on login', () => {
+    const data = mockLoginResponse({ slug: 'minha-clinica' });
+    service.login('teste@clinica.com', 'senha123').subscribe();
+    httpMock.expectOne('http://localhost:5268/api/auth/login').flush(data);
+    expect(service.slug()).toBe('minha-clinica');
+  });
+
+  it('should refresh and update auth signals', () => {
+    const data = mockLoginResponse({ token: 'novo-token' });
+    service['setAuth'](mockLoginResponse());
+
+    service.refresh().subscribe((res) => {
+      expect(res.token).toBe('novo-token');
+      expect(service.token()).toBe('novo-token');
+    });
+
+    const req = httpMock.expectOne('http://localhost:5268/api/auth/refresh');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ refreshToken: 'refresh-token-123' });
+    req.flush(data);
+  });
+
+  it('should store and clear remembered email', () => {
+    service.salvarEmailLembrado('teste@clinica.com');
+    expect(service.emailLembrado()).toBe('teste@clinica.com');
+
+    service.esquecerEmailLembrado();
+    expect(service.emailLembrado()).toBe('');
   });
 
   it('should store auth data in localStorage after login', () => {

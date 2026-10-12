@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { tap } from 'rxjs';
-import type { PacienteLoginRequest, PacienteLoginResponse } from '../models/models';
+import type { GoogleLoginResponse, PacienteLoginRequest, PacienteLoginResponse } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
 export class PacienteAuthService {
@@ -12,6 +12,7 @@ export class PacienteAuthService {
   readonly email = signal<string>('');
   readonly telefoneCelular = signal<string | null>(null);
   readonly consultorioId = signal<string>('');
+  readonly slug = signal<string>('');
 
   constructor(private http: HttpClient) {
     const saved = localStorage.getItem('auth-paciente');
@@ -34,7 +35,22 @@ export class PacienteAuthService {
     return this.http.post(`${this.apiUrl}/cadastro-paciente/${consultorioId}`, data);
   }
 
+  refresh() {
+    return this.http
+      .post<PacienteLoginResponse>(
+        `${this.apiUrl}/refresh-paciente`,
+        { refreshToken: this.getRefreshToken() },
+      )
+      .pipe(tap((res) => this.setAuth(res)));
+  }
+
   logout() {
+    const refreshToken = this.getRefreshToken();
+    if (refreshToken) {
+      this.http
+        .post(`${this.apiUrl}/logout-paciente`, { refreshToken })
+        .subscribe({ next: () => {}, error: () => {} });
+    }
     localStorage.removeItem('auth-paciente');
     this.token.set(null);
     this.pacienteId.set('');
@@ -42,12 +58,36 @@ export class PacienteAuthService {
     this.email.set('');
     this.telefoneCelular.set(null);
     this.consultorioId.set('');
+    this.slug.set('');
   }
 
-  isLoggedIn(consultorioId?: string) {
+  aplicarLoginGoogle(data: GoogleLoginResponse) {
+    this.setAuth({
+      token: data.token,
+      id: data.id,
+      nome: data.nome,
+      email: data.email,
+      telefoneCelular: data.telefoneCelular,
+      consultorioId: data.consultorioId,
+      slug: data.slug,
+      refreshToken: data.refreshToken,
+    });
+  }
+
+  getRefreshToken(): string | null {
+    const saved = localStorage.getItem('auth-paciente');
+    if (!saved) return null;
+    try {
+      return (JSON.parse(saved) as PacienteLoginResponse).refreshToken ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  isLoggedIn(consultorio?: string) {
     if (this.token() === null) return false;
-    if (!consultorioId) return true;
-    return this.consultorioId() === consultorioId;
+    if (!consultorio) return true;
+    return this.consultorioId() === consultorio || this.slug() === consultorio;
   }
 
   private setAuth(data: PacienteLoginResponse) {
@@ -58,5 +98,6 @@ export class PacienteAuthService {
     this.email.set(data.email ?? '');
     this.telefoneCelular.set(data.telefoneCelular ?? null);
     this.consultorioId.set(data.consultorioId);
+    this.slug.set(data.slug ?? '');
   }
 }

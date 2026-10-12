@@ -47,14 +47,14 @@ public class TokenServiceTests
     }
 
     [Fact]
-    public void GerarToken_DeveExpirarEm4Horas()
+    public void GerarToken_DeveExpirarEm15Minutos()
     {
         var token = _service.GerarToken(Guid.NewGuid(), "test@email.com", "Test User", "Admin", Guid.NewGuid());
         var handler = new JwtSecurityTokenHandler();
         var jwt = handler.ReadJwtToken(token);
 
-        var horasRestantes = (jwt.ValidTo - DateTime.UtcNow).TotalHours;
-        Assert.InRange(horasRestantes, 3.9, 4.1);
+        var minutosRestantes = (jwt.ValidTo - DateTime.UtcNow).TotalMinutes;
+        Assert.InRange(minutosRestantes, 14.5, 15.5);
     }
 
     [Fact]

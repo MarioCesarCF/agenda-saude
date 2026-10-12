@@ -9,12 +9,18 @@ public class AuthService
 {
     private readonly AppDbContext _context;
     private readonly TokenService _tokenService;
+    private readonly RefreshTokenService _refreshTokenService;
     private readonly INeonSessionValidator _neonSessionValidator;
 
-    public AuthService(AppDbContext context, TokenService tokenService, INeonSessionValidator neonSessionValidator)
+    public AuthService(
+        AppDbContext context,
+        TokenService tokenService,
+        RefreshTokenService refreshTokenService,
+        INeonSessionValidator neonSessionValidator)
     {
         _context = context;
         _tokenService = tokenService;
+        _refreshTokenService = refreshTokenService;
         _neonSessionValidator = neonSessionValidator;
     }
 
@@ -27,15 +33,36 @@ public class AuthService
         if (usuario is null || !BCrypt.Net.BCrypt.Verify(request.Senha, usuario.SenhaHash))
             return null;
 
+        return await GerarLoginResponseAsync(usuario);
+    }
+
+    public async Task<LoginResponse?> RefreshAdminAsync(string refreshToken)
+    {
+        var stored = await _refreshTokenService.ValidarAsync(refreshToken);
+        if (stored is null || stored.UsuarioId is null) return null;
+
+        var usuario = await _context.Usuarios
+            .Include(u => u.Consultorio)
+            .FirstOrDefaultAsync(u => u.Id == stored.UsuarioId && u.Ativo);
+        if (usuario is null) return null;
+
+        await _refreshTokenService.RevogarAsync(refreshToken);
+        return await GerarLoginResponseAsync(usuario);
+    }
+
+    private async Task<LoginResponse> GerarLoginResponseAsync(Usuario usuario)
+    {
         var token = _tokenService.GerarToken(
             usuario.Id, usuario.Email, usuario.Nome,
             usuario.Perfil.ToString(), usuario.ConsultorioId);
+
+        var refresh = await _refreshTokenService.GerarAsync(usuario.ConsultorioId, usuario.Id, null);
 
         var c = usuario.Consultorio;
         return new LoginResponse(token, usuario.Id.ToString(), usuario.Nome, usuario.Email,
             usuario.Perfil.ToString(), usuario.ConsultorioId,
             c.NomeFantasia, c.Tema, c.CorPrimaria, c.CorSecundaria,
-            c.CorDestaque, c.Icone, c.DiasAgenda);
+            c.CorDestaque, c.Icone, c.DiasAgenda, c.Slug, refresh);
     }
 
     public async Task<CadastroConsultorioResponse?> CadastrarConsultorioAsync(CadastroConsultorioRequest request)
@@ -43,9 +70,15 @@ public class AuthService
         var existente = await _context.Consultorios.AnyAsync(c => c.Email == request.Email);
         if (existente) return null;
 
+        var slugBase = SlugHelper.Valido(request.Slug)
+            ? request.Slug!.Trim().ToLowerInvariant()
+            : SlugHelper.Gerar(request.NomeFantasia);
+        var slug = await GerarSlugUnicoAsync(slugBase);
+
         var consultorio = new Consultorio
         {
             NomeFantasia = request.NomeFantasia,
+            Slug = slug,
             Email = request.Email,
             TelefoneCelular = request.TelefoneCelular,
             Documento = request.Documento,
@@ -77,15 +110,38 @@ public class AuthService
         _context.Usuarios.Add(usuario);
         await _context.SaveChangesAsync();
 
-        return new CadastroConsultorioResponse(consultorio.Id, consultorio.NomeFantasia, consultorio.Email);
+        return new CadastroConsultorioResponse(consultorio.Id, consultorio.NomeFantasia, consultorio.Email, consultorio.Slug);
+    }
+
+    public async Task<string> GerarSlugUnicoAsync(string baseSlug)
+    {
+        if (string.IsNullOrWhiteSpace(baseSlug)) baseSlug = "consultorio";
+
+        baseSlug = baseSlug.Trim().Trim('-');
+        if (baseSlug.Length < SlugHelper.TamanhoMinimo) baseSlug += "-clinica";
+        if (baseSlug.Length > SlugHelper.TamanhoMaximo)
+            baseSlug = baseSlug[..SlugHelper.TamanhoMaximo].Trim('-');
+
+        var slug = baseSlug;
+        var i = 2;
+        while (await _context.Consultorios.AnyAsync(c => c.Slug == slug))
+        {
+            var sufixo = $"-{i++}";
+            var corte = Math.Max(1, Math.Min(baseSlug.Length, SlugHelper.TamanhoMaximo - sufixo.Length));
+            slug = baseSlug[..corte].Trim('-') + sufixo;
+        }
+        return slug;
     }
 
     public async Task<CadastroPacienteResponse?> CadastrarPacienteAsync(Guid consultorioId, CadastroPacienteRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email)) return null;
+        var email = request.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(email)) return null;
 
+        var emailNormalizado = email.ToLowerInvariant();
         var paciente = await _context.Pacientes
-            .FirstOrDefaultAsync(p => p.Email == request.Email && p.ConsultorioId == consultorioId);
+            .FirstOrDefaultAsync(p => p.ConsultorioId == consultorioId
+                && p.Email != null && p.Email.ToLower() == emailNormalizado);
 
         if (paciente is not null)
         {
@@ -102,9 +158,9 @@ public class AuthService
         paciente = new Paciente
         {
             ConsultorioId = consultorioId,
-            Nome = request.Nome,
-            Email = request.Email,
-            TelefoneCelular = request.TelefoneCelular,
+            Nome = request.Nome.Trim(),
+            Email = email,
+            TelefoneCelular = request.TelefoneCelular.Trim(),
             SenhaHash = string.IsNullOrWhiteSpace(request.Senha)
                 ? null
                 : BCrypt.Net.BCrypt.HashPassword(request.Senha)
@@ -119,6 +175,7 @@ public class AuthService
     public async Task<PacienteLoginResponse?> LoginPacienteAsync(Guid consultorioId, LoginPacienteRequest request)
     {
         var paciente = await _context.Pacientes
+            .Include(p => p.Consultorio)
             .FirstOrDefaultAsync(p => p.ConsultorioId == consultorioId
                 && p.Email == request.Email && p.Ativo);
 
@@ -126,14 +183,35 @@ public class AuthService
             || !BCrypt.Net.BCrypt.Verify(request.Senha, paciente.SenhaHash))
             return null;
 
+        return await GerarPacienteLoginResponseAsync(paciente);
+    }
+
+    public async Task<PacienteLoginResponse?> RefreshPacienteAsync(string refreshToken)
+    {
+        var stored = await _refreshTokenService.ValidarAsync(refreshToken);
+        if (stored is null || stored.PacienteId is null) return null;
+
+        var paciente = await _context.Pacientes
+            .Include(p => p.Consultorio)
+            .FirstOrDefaultAsync(p => p.Id == stored.PacienteId && p.Ativo);
+        if (paciente is null) return null;
+
+        await _refreshTokenService.RevogarAsync(refreshToken);
+        return await GerarPacienteLoginResponseAsync(paciente);
+    }
+
+    private async Task<PacienteLoginResponse> GerarPacienteLoginResponseAsync(Paciente paciente)
+    {
         var token = _tokenService.GerarToken(
             paciente.Id, paciente.Email ?? "", paciente.Nome,
-            "Paciente", consultorioId);
+            "Paciente", paciente.ConsultorioId);
+
+        var refresh = await _refreshTokenService.GerarAsync(paciente.ConsultorioId, null, paciente.Id);
 
         return new PacienteLoginResponse(
             token, paciente.Id.ToString(), paciente.Nome, paciente.Email,
             string.IsNullOrWhiteSpace(paciente.TelefoneCelular) ? null : paciente.TelefoneCelular,
-            consultorioId);
+            paciente.ConsultorioId, paciente.Consultorio.Slug, refresh);
     }
 
     public async Task<GoogleLoginResponse?> LoginGoogleAsync(Guid consultorioId, string sessionToken)
@@ -169,8 +247,24 @@ public class AuthService
             await _context.SaveChangesAsync();
         }
 
+        var slug = await _context.Consultorios
+            .Where(c => c.Id == consultorioId)
+            .Select(c => c.Slug)
+            .FirstOrDefaultAsync() ?? "";
+
+        var access = _tokenService.GerarToken(
+            paciente.Id, paciente.Email ?? "", paciente.Nome, "Paciente", consultorioId);
+        var refresh = await _refreshTokenService.GerarAsync(consultorioId, null, paciente.Id);
+
         return new GoogleLoginResponse(
             paciente.Id, paciente.Nome, paciente.Email,
-            string.IsNullOrWhiteSpace(paciente.TelefoneCelular) ? null : paciente.TelefoneCelular);
+            string.IsNullOrWhiteSpace(paciente.TelefoneCelular) ? null : paciente.TelefoneCelular,
+            access, refresh, consultorioId, slug);
+    }
+
+    public async Task LogoutAsync(string? refreshToken)
+    {
+        if (!string.IsNullOrWhiteSpace(refreshToken))
+            await _refreshTokenService.RevogarAsync(refreshToken);
     }
 }

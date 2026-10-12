@@ -4,6 +4,8 @@ import { Router } from '@angular/router';
 import { tap } from 'rxjs';
 import type { LoginRequest, LoginResponse } from '../models/models';
 
+const EMAIL_LEMBRADO_KEY = 'auth:email-lembrado';
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly apiUrl = 'http://localhost:5268/api/auth';
@@ -20,6 +22,7 @@ export class AuthService {
   readonly corDestaque = signal<string>('#f59e0b');
   readonly icone = signal<string | null>(null);
   readonly diasAgenda = signal<number>(2);
+  readonly slug = signal<string>('');
 
   constructor(
     private http: HttpClient,
@@ -35,6 +38,12 @@ export class AuthService {
   login(email: string, senha: string) {
     return this.http
       .post<LoginResponse>(`${this.apiUrl}/login`, { email, senha } as LoginRequest)
+      .pipe(tap((res) => this.setAuth(res)));
+  }
+
+  refresh() {
+    return this.http
+      .post<LoginResponse>(`${this.apiUrl}/refresh`, { refreshToken: this.getRefreshToken() })
       .pipe(tap((res) => this.setAuth(res)));
   }
 
@@ -55,16 +64,49 @@ export class AuthService {
   }
 
   logout() {
-    const token = this.token();
-    if (token) {
-      this.http.post(`${this.apiUrl}/logout`, {}).subscribe({ next: () => {}, error: () => {} });
+    const refreshToken = this.getRefreshToken();
+    if (refreshToken) {
+      this.http
+        .post(`${this.apiUrl}/logout`, { refreshToken })
+        .subscribe({ next: () => {}, error: () => {} });
     }
     localStorage.removeItem('auth');
     this.token.set(null);
     this.router.navigate(['/login']);
   }
 
-  updateTheme(data: { nomeFantasia: string; tema: string; corPrimaria: string; corSecundaria: string; corDestaque: string; icone: string | null; diasAgenda?: number }) {
+  getRefreshToken(): string | null {
+    const saved = localStorage.getItem('auth');
+    if (!saved) return null;
+    try {
+      return (JSON.parse(saved) as LoginResponse).refreshToken ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  salvarEmailLembrado(email: string) {
+    localStorage.setItem(EMAIL_LEMBRADO_KEY, email);
+  }
+
+  esquecerEmailLembrado() {
+    localStorage.removeItem(EMAIL_LEMBRADO_KEY);
+  }
+
+  emailLembrado(): string {
+    return localStorage.getItem(EMAIL_LEMBRADO_KEY) ?? '';
+  }
+
+  updateTheme(data: {
+    nomeFantasia: string;
+    tema: string;
+    corPrimaria: string;
+    corSecundaria: string;
+    corDestaque: string;
+    icone: string | null;
+    diasAgenda?: number;
+    slug?: string;
+  }) {
     this.nomeFantasia.set(data.nomeFantasia);
     this.tema.set(data.tema);
     this.corPrimaria.set(data.corPrimaria);
@@ -72,6 +114,7 @@ export class AuthService {
     this.corDestaque.set(data.corDestaque);
     this.icone.set(data.icone);
     if (data.diasAgenda !== undefined) this.diasAgenda.set(data.diasAgenda);
+    if (data.slug !== undefined) this.slug.set(data.slug);
     const saved = localStorage.getItem('auth');
     if (saved) {
       const auth = JSON.parse(saved);
@@ -103,5 +146,6 @@ export class AuthService {
     this.corDestaque.set(data.corDestaque);
     this.icone.set(data.icone ?? null);
     this.diasAgenda.set(data.diasAgenda ?? 2);
+    this.slug.set(data.slug ?? '');
   }
 }

@@ -151,6 +151,8 @@ builder.Services.AddScoped<UsuariosService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<ResetSenhaService>();
 builder.Services.AddScoped<INeonSessionValidator, NeonSessionValidator>();
+builder.Services.AddScoped<RefreshTokenService>();
+builder.Services.AddScoped<ConsultorioResolver>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -291,6 +293,59 @@ using (var scope = app.Services.CreateScope())
         );
         CREATE INDEX IF NOT EXISTS "IX_HistoricoAcoes_ConsultorioId" ON "HistoricoAcoes" ("ConsultorioId");
         CREATE INDEX IF NOT EXISTS "IX_HistoricoAcoes_DataHora" ON "HistoricoAcoes" ("DataHora");
+    """);
+
+    // Add Slug column for existing databases
+    db.Database.ExecuteSqlRaw("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Consultorios' AND column_name='Slug') THEN
+                ALTER TABLE "Consultorios" ADD COLUMN "Slug" VARCHAR(60) NOT NULL DEFAULT '';
+            END IF;
+        END $$;
+    """);
+
+    // Create RefreshTokens table if it doesn't exist
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "RefreshTokens" (
+            "Id" UUID NOT NULL DEFAULT gen_random_uuid(),
+            "TokenHash" VARCHAR(200) NOT NULL,
+            "ConsultorioId" UUID NOT NULL,
+            "UsuarioId" UUID NULL,
+            "PacienteId" UUID NULL,
+            "CriadoEm" TIMESTAMP NOT NULL DEFAULT NOW(),
+            "ExpiraEm" TIMESTAMP NOT NULL,
+            "Revogado" BOOLEAN NOT NULL DEFAULT FALSE,
+            CONSTRAINT "PK_RefreshTokens" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_RefreshTokens_Consultorios_ConsultorioId" FOREIGN KEY ("ConsultorioId") REFERENCES "Consultorios"("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_RefreshTokens_Usuarios_UsuarioId" FOREIGN KEY ("UsuarioId") REFERENCES "Usuarios"("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_RefreshTokens_Pacientes_PacienteId" FOREIGN KEY ("PacienteId") REFERENCES "Pacientes"("Id") ON DELETE CASCADE
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_RefreshTokens_TokenHash" ON "RefreshTokens" ("TokenHash");
+        CREATE INDEX IF NOT EXISTS "IX_RefreshTokens_UsuarioId" ON "RefreshTokens" ("UsuarioId");
+        CREATE INDEX IF NOT EXISTS "IX_RefreshTokens_PacienteId" ON "RefreshTokens" ("PacienteId");
+    """);
+
+    // Backfill slugs for existing consultórios
+    var semSlug = db.Consultorios.Where(c => c.Slug == null || c.Slug == "").ToList();
+    var slugsUsados = db.Consultorios
+        .Where(c => c.Slug != null && c.Slug != "")
+        .Select(c => c.Slug)
+        .ToHashSet();
+    foreach (var c in semSlug)
+    {
+        var baseSlug = SlugHelper.Gerar(c.NomeFantasia);
+        if (string.IsNullOrWhiteSpace(baseSlug)) baseSlug = "consultorio";
+        var slug = baseSlug;
+        var i = 2;
+        while (slugsUsados.Contains(slug)) slug = $"{baseSlug}-{i++}";
+        c.Slug = slug;
+        slugsUsados.Add(slug);
+    }
+    if (semSlug.Count > 0) db.SaveChanges();
+
+    // Unique index on Slug
+    db.Database.ExecuteSqlRaw("""
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Consultorios_Slug" ON "Consultorios" ("Slug");
     """);
 
     // Create ResetTokens table if it doesn't exist

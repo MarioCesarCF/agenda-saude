@@ -1,7 +1,8 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { createAuthClient } from '@neondatabase/neon-js/auth';
 import { ApiService } from '../services/api.service';
+import { PacienteAuthService } from '../services/paciente-auth.service';
 import { AppConfig } from '../config/app.config';
 import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse } from '../models/models';
 
@@ -467,7 +468,9 @@ import type { Profissional, Servico, HorariosDisponiveis, ConfiguracaoResponse }
 })
 export class AgendamentoComponent implements OnInit {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private api = inject(ApiService);
+  private pacienteAuth = inject(PacienteAuthService);
   private cdr = inject(ChangeDetectorRef);
 
   consultorioId = '';
@@ -501,7 +504,7 @@ export class AgendamentoComponent implements OnInit {
 
   mesAtual = new Date();
   calendarioMes: Date[] = [];
-  diasSemanaMes = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  diasSemanaMes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   diasComHorarios = new Set<string>();
   dataSelecionada: Date | null = null;
   horariosData: string[] = [];
@@ -531,6 +534,7 @@ export class AgendamentoComponent implements OnInit {
   ngOnInit() {
     this.consultorioId = this.route.snapshot.params['consultorioId'];
     this.restaurarDraft();
+    this.preencherComPacienteLogado();
 
     this.api.getConfiguracaoPublica(this.consultorioId).subscribe({
       next: (res) => {
@@ -546,11 +550,19 @@ export class AgendamentoComponent implements OnInit {
     }
   }
 
+  private preencherComPacienteLogado() {
+    if (!this.pacienteAuth.isLoggedIn(this.consultorioId)) return;
+    if (!this.pacNome) this.pacNome = this.pacienteAuth.nome();
+    if (!this.pacEmail) this.pacEmail = this.pacienteAuth.email();
+    const celular = this.pacienteAuth.telefoneCelular();
+    if (!this.pacCelular && celular) this.pacCelular = celular;
+  }
+
   private gerarCalendarioMes() {
     const ano = this.mesAtual.getFullYear();
     const mes = this.mesAtual.getMonth();
     const primeiroDia = new Date(ano, mes, 1);
-    const diaSemanaInicio = (primeiroDia.getDay() + 6) % 7;
+    const diaSemanaInicio = primeiroDia.getDay();
     const inicio = new Date(ano, mes, 1 - diaSemanaInicio);
     this.calendarioMes = Array.from({ length: 42 }, (_, i) => {
       const d = new Date(inicio);
@@ -835,6 +847,7 @@ export class AgendamentoComponent implements OnInit {
       next: (res) => {
         this.googleCarregando = false;
         this.googleConectado = true;
+        this.pacienteAuth.aplicarLoginGoogle(res);
         this.pacNome = res.nome;
         this.pacEmail = res.email ?? '';
         if (res.telefoneCelular) this.pacCelular = res.telefoneCelular;
@@ -941,6 +954,14 @@ export class AgendamentoComponent implements OnInit {
     }
     this.erro = '';
     this.sucesso = '';
+
+    if (!this.pacienteAuth.isLoggedIn(this.consultorioId)) {
+      this.salvarDraft();
+      this.router.navigate(['/p', this.consultorioId, 'entrar'], {
+        queryParams: { redirect: `/p/${this.consultorioId}` },
+      });
+      return;
+    }
 
     this.api.agendarPublico(this.consultorioId, {
       profissionalId: this.profissionalId || null,

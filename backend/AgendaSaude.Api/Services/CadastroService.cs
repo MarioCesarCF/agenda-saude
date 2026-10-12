@@ -216,7 +216,7 @@ public class CadastroService
                 c.NomeFantasia, c.Email, c.Documento, c.TelefoneCelular,
                 c.Logradouro, c.Numero, c.Bairro, c.Cidade, c.Estado, c.CEP,
                 c.Tema, c.CorPrimaria, c.CorSecundaria, c.CorDestaque, c.Icone,
-                c.DiasAgenda))
+                c.DiasAgenda, c.Slug))
             .FirstOrDefaultAsync();
     }
 
@@ -225,17 +225,17 @@ public class CadastroService
         return await _context.Consultorios
             .Where(c => c.Id == consultorioId && c.Ativo)
             .Select(c => new ConfiguracaoPublicaResponse(
-                c.NomeFantasia, c.Cidade ?? "", c.Estado,
+                c.Id, c.NomeFantasia, c.Cidade ?? "", c.Estado,
                 c.Tema, c.CorPrimaria, c.CorSecundaria, c.CorDestaque, c.Icone,
-                c.DiasAgenda))
+                c.DiasAgenda, c.Slug))
             .FirstOrDefaultAsync();
     }
 
-    public async Task<bool> AtualizarConfiguracaoAsync(Guid consultorioId, ConfiguracaoUpdateRequest request)
+    public async Task<(bool Ok, string? Erro)> AtualizarConfiguracaoAsync(Guid consultorioId, ConfiguracaoUpdateRequest request)
     {
         var consultorio = await _context.Consultorios
             .FirstOrDefaultAsync(c => c.Id == consultorioId);
-        if (consultorio is null) return false;
+        if (consultorio is null) return (false, "Consultório não encontrado");
 
         if (request.NomeFantasia is not null) consultorio.NomeFantasia = request.NomeFantasia;
         if (request.Tema is not null) consultorio.Tema = request.Tema;
@@ -245,8 +245,22 @@ public class CadastroService
         if (request.Icone is not null) consultorio.Icone = request.Icone;
         if (request.DiasAgenda.HasValue) consultorio.DiasAgenda = request.DiasAgenda.Value;
 
+        if (!string.IsNullOrWhiteSpace(request.Slug))
+        {
+            var slug = request.Slug.Trim().ToLowerInvariant();
+            if (!SlugHelper.Valido(slug))
+                return (false, "Slug inválido. Use apenas letras minúsculas, números e hífens (3 a 60 caracteres).");
+
+            var emUso = await _context.Consultorios
+                .AnyAsync(c => c.Slug == slug && c.Id != consultorioId);
+            if (emUso)
+                return (false, "Este slug já está em uso por outro consultório.");
+
+            consultorio.Slug = slug;
+        }
+
         await _context.SaveChangesAsync();
-        return true;
+        return (true, null);
     }
 
     public async Task<bool> CriarHorarioAsync(Guid consultorioId, HorarioDisponivelRequest request)

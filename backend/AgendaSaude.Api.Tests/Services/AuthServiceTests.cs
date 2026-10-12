@@ -18,7 +18,7 @@ public class AuthServiceTests : IDisposable
     {
         _context = TestHelper.CreateInMemoryContext();
         _tokenService = new TokenService(JwtKey, "Test", "Test");
-        _authService = new AuthService(_context, _tokenService, _neonValidator);
+        _authService = new AuthService(_context, _tokenService, new RefreshTokenService(_context), _neonValidator);
     }
 
     public void Dispose() => _context.Dispose();

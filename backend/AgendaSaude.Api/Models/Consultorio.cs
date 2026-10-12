@@ -8,6 +8,8 @@ public class Consultorio
 
     [Required][MaxLength(200)] public string NomeFantasia { get; set; } = string.Empty;
 
+    [Required][MaxLength(60)] public string Slug { get; set; } = string.Empty;
+
     [MaxLength(200)] public string? RazaoSocial { get; set; }
 
     [MaxLength(20)] public string? Documento { get; set; }
